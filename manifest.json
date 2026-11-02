@@ -1,0 +1,9 @@
+{
+  "id": "diary-stream",
+  "name": "日记流",
+  "version": "0.1.4",
+  "minAppVersion": "1.4.0",
+  "description": "把日记文件夹当数据库的 memos 式时间线：按天浏览、搜索、标签、写日记、图片与录音。",
+  "author": "goo",
+  "isDesktopOnly": false
+}
