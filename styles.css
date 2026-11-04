@@ -124,7 +124,7 @@
 .ds-vdur{font-size:12px;color:var(--text-faint);font-variant-numeric:tabular-nums;min-width:3em}
 .ds-voice audio{display:none}
 .ds-missing{display:inline-block;font-size:12.5px;color:var(--text-faint);border:1px solid var(--background-modifier-border);border-radius:8px;padding:2px 8px;margin:4px 0}
-.ds-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.ds-tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
 .ds-root .ds-tag{border:0;height:24px;padding:0 8px;border-radius:6px;font-size:12.5px;background:var(--tag-background);color:var(--tag-color)}
 .ds-root .ds-tag.ds-dtag:not(.is-on){background:transparent;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tag-color) 35%,transparent)}
 .ds-root .ds-tag.is-on{background:var(--interactive-accent);color:var(--text-on-accent)}

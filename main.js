@@ -1417,9 +1417,9 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         <button type="button" class="ds-kebab clickable-icon" data-menu="${esc(key)}" aria-label="\u66F4\u591A" data-icon="more-horizontal"></button>
         ${this.S.menu === key ? `<div class="ds-menu" role="menu"><button type="button" data-editkey="${esc(key)}"><span data-icon="pencil"></span>\u7F16\u8F91</button><button type="button" data-delkey="${esc(key)}" class="mod-warning"><span data-icon="trash-2"></span>\u5220\u9664</button><button type="button" data-openkey="${esc(key)}"><span data-icon="file-text"></span>\u6253\u5F00\u6E90\u6587\u4EF6</button></div>` : ""}
       </header>
+      ${tags.length ? `<div class="ds-tags">${tags.map((t) => `<button type="button" class="ds-tag${own.includes(t) ? "" : " ds-dtag"}${this.S.tag === t ? " is-on" : ""}" data-tag="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
       <div class="ds-body${long ? " is-clamp" : ""}">${highlight(renderMarkdown(s.content, ctx), this.S.q)}</div>
       ${long ? '<button type="button" class="ds-more">\u5C55\u5F00\u5168\u6587 \u2193</button>' : ""}
-      ${tags.length ? `<footer class="ds-tags">${tags.map((t) => `<button type="button" class="ds-tag${own.includes(t) ? "" : " ds-dtag"}${this.S.tag === t ? " is-on" : ""}" data-tag="${esc(t)}">#${esc(t)}</button>`).join("")}</footer>` : ""}
     </article>`;
   }
   dayLabel(d) {
