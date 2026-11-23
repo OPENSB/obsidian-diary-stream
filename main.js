@@ -557,6 +557,23 @@ var icon = (el, name) => {
   if (el) (0, import_obsidian.setIcon)(el, name);
 };
 var fmtDur = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+var INLINE_IMG_RE = /\[\[DS_IMG:([a-zA-Z0-9_-]+)\]\]/g;
+function resolveInlineImages(body, atts, pathFor) {
+  let out = body || "";
+  const remaining = [];
+  for (let i = 0; i < atts.length; i++) {
+    const a = atts[i];
+    const token = a.id ? `[[DS_IMG:${a.id}]]` : "";
+    const embed = `![[${pathFor(a, i)}]]`;
+    if (token && out.includes(token)) {
+      out = out.split(token).join(`\n\n${embed}\n\n`);
+    } else {
+      remaining.push(embed);
+    }
+  }
+  out = out.replace(INLINE_IMG_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+  return [out, ...remaining].filter(Boolean).join("\n");
+}
 var Composer = class {
   constructor(parent, host, mode, init) {
     this.host = host;
@@ -566,8 +583,13 @@ var Composer = class {
     __publicField(this, "ta");
     __publicField(this, "tags", []);
     __publicField(this, "atts", []);
+    __publicField(this, "blocks", [{ id: "b0", type: "text", text: "" }]);
+    __publicField(this, "activeBlockId", "b0");
+    __publicField(this, "activeCaret", 0);
+    __publicField(this, "nextBlockUid", 1);
     __publicField(this, "sub", "");
     __publicField(this, "when", null);
+    __publicField(this, "buji", false);
     __publicField(this, "subOpen", false);
     __publicField(this, "tagsOpen", false);
     __publicField(this, "busy", false);
@@ -588,6 +610,7 @@ var Composer = class {
       this.sub = init.sub;
       this.tags = [...init.tags];
       this.subOpen = !!init.sub && !this.inline;
+      this.blocks = [{ id: "b0", type: "text", text: init.body || "" }];
     }
     this.build(init);
     if (this.mode === "edit") this.initialEditState = this.editSignature();
@@ -601,35 +624,35 @@ var Composer = class {
     this.el.empty?.();
     this.el.innerHTML = "";
   }
-  ib(a, ic, title) {
-    return `<button type="button" class="ds-ib clickable-icon" data-a="${a}" data-icon="${ic}" aria-label="${title}" title="${title}"></button>`;
+  ib(a, ic, label, text = "") {
+    return `<button type="button" class="ds-ib clickable-icon" data-a="${a}"><span data-icon="${ic}"></span>${text ? `<span class="ds-ib-txt">${esc(text)}</span>` : `<span class="ds-sr-only">${esc(label)}</span>`}</button>`;
   }
   build(init) {
     const isNew = this.mode === "new";
     this.el.innerHTML = `<div class="ds-cbox${isNew ? "" : " is-open is-edit"}${this.inline ? " ds-inline-editor" : ""}">
-      ${isNew || this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
-      <textarea class="ds-body" rows="1" placeholder="${isNew ? "\u6B64\u523B\u5728\u60F3\u4EC0\u4E48\u2026" : ""}"></textarea>
+      ${isNew ? `<div class="ds-sheet-write-head"><button type="button" class="ds-meta" data-a="time"></button><button type="button" class="ds-send mod-cta" data-a="send" disabled>\u4FDD\u5B58</button></div>` : this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
+      ${isNew ? `<div class="ds-pop ds-timepop" hidden><div class="ds-time-presets"><button type="button" class="ds-tp-chip" data-a="now">\u73B0\u5728</button><button type="button" class="ds-tp-chip" data-a="preset-yest">\u8865\u8BB0\u6628\u5929</button><button type="button" class="ds-tp-chip" data-a="preset-prev2">\u8865\u8BB0\u524D\u5929</button></div><div class="ds-time-row"><label class="ds-sr-only" for="ds-when-inp">\u5199\u5165\u65F6\u95F4</label><input id="ds-when-inp" type="datetime-local" class="ds-when"><button type="button" class="ds-buji-toggle" data-a="togglebuji">\u6807\u8BB0\u4E3A\u8865\u8BB0</button></div><div class="ds-row"><span class="ds-hint"></span></div></div>` : ""}
+      <div class="ds-blocks"></div>
       ${this.inline ? '<div class="ds-edit-controls">' : ""}
       <div class="ds-att"></div>
       <div class="ds-fields"></div>
+      ${isNew ? '<div class="ds-qtags"></div>' : ""}
       <div class="ds-bar">
-        ${init && !init.hasHeader ? "" : this.ib("sub", "heading", "\u526F\u6807\u9898")}${this.ib("tags", "hash", "\u6807\u7B7E")}${this.ib("img", "image", "\u63D2\u5165\u56FE\u7247")}${this.ib("rec", "mic", "\u5F55\u97F3")}${isNew ? this.ib("time", "clock", "\u5199\u5165\u65F6\u95F4") : ""}
+        ${init && !init.hasHeader ? "" : this.ib("sub", "heading", "\u526F\u6807\u9898", isNew ? "\u6807\u9898" : "")}${this.ib("tags", "hash", "\u6807\u7B7E", isNew ? "\u6807\u7B7E" : "")}${this.ib("img", "image", "\u63D2\u5165\u56FE\u7247", isNew ? "\u63D2\u56FE" : "")}${this.ib("rec", "mic", "\u5F55\u97F3")}
         <span class="ds-sp"></span>
         ${this.ib("pv", "file-text", "\u9884\u89C8\u5C06\u5199\u5165\u7684\u5185\u5BB9")}
-        ${isNew ? '<button type="button" class="ds-meta" data-a="time"></button>' : '<button type="button" class="ds-ghost" data-a="cancel">\u53D6\u6D88</button>'}
-        <button type="button" class="ds-send mod-cta" data-a="send" disabled>${isNew ? "\u53D1\u9001" : "\u4FDD\u5B58"}</button>
-        <div class="ds-pop ds-timepop" hidden><label>\u5199\u5165\u65F6\u95F4<input type="datetime-local" class="ds-when"></label><div class="ds-row"><span class="ds-hint"></span><button type="button" data-a="now">\u73B0\u5728</button></div></div>
+        ${isNew ? "" : '<button type="button" class="ds-ghost" data-a="cancel">\u53D6\u6D88</button><button type="button" class="ds-send mod-cta" data-a="send" disabled>\u4FDD\u5B58</button>'}
       </div>
       <div class="ds-preview" hidden></div>
       ${this.inline ? "</div>" : ""}
       <input type="file" accept="image/*" multiple class="ds-fileinput" hidden>
     </div>`;
     this.box = this.el.querySelector(".ds-cbox");
-    this.ta = this.box.querySelector(".ds-body");
-    if (init) this.ta.value = init.body;
+    this.renderBlocks();
     this.box.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
     this.bind();
     this.renderFields();
+    this.renderQuickTags();
     this.autosize();
     this.update();
     if (this.inline && !this.el.ownerDocument.defaultView.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -641,6 +664,119 @@ var Composer = class {
   }
   q(s) {
     return this.box.querySelector(s);
+  }
+  hasInlineImages() {
+    return Array.isArray(this.blocks) && this.blocks.some((b) => b.type === "img");
+  }
+  renderBlocks(focusBlockId = null, caret = null) {
+    const wrap = this.q(".ds-blocks");
+    if (!wrap) return;
+    const isNew = this.mode === "new";
+    const isSolo = this.blocks.length === 1;
+    wrap.innerHTML = this.blocks.map((b, idx) => {
+      if (b.type === "text") {
+        const ph = isNew ? (idx === 0 ? "\u76F4\u63A5\u8BF4\u51FA\u6216\u5199\u4E0B\u6B64\u523B\u7684\u60F3\u6CD5\u2026" : "\u5728\u56FE\u7247\u4E0B\u65B9\u7EE7\u7EED\u5199\u2026") : "";
+        return `<textarea class="ds-body${isSolo ? " is-solo" : ""}" data-block-id="${esc(b.id)}" rows="1" placeholder="${ph}">${esc(b.text)}</textarea>`;
+      }
+      const att = this.atts.find((a) => a.id === b.attId);
+      if (!att) return "";
+      return `<div class="ds-inline-att" data-img-block="${esc(b.id)}"><img alt="" src="${esc(att.url)}"><button type="button" class="ds-ax" data-a="rmimgblock" data-bid="${esc(b.id)}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664\u56FE\u7247</span></button></div>`;
+    }).join("");
+    wrap.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
+    const tas = [...wrap.querySelectorAll("textarea.ds-body")];
+    this.ta = tas.find((t) => t.dataset.blockId === this.activeBlockId) || tas[0];
+    this.autosize();
+    if (focusBlockId) {
+      const target = tas.find((t) => t.dataset.blockId === focusBlockId);
+      if (target) {
+        target.focus({ preventScroll: false });
+        if (caret != null) target.setSelectionRange(caret, caret);
+        target.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      }
+    }
+  }
+  normalizeBlocks() {
+    const out = [];
+    for (const b of this.blocks) {
+      if (b.type === "text" && out.length && out[out.length - 1].type === "text") {
+        const prev = out[out.length - 1];
+        prev.text = [prev.text, b.text].filter(Boolean).join("\n\n");
+      } else {
+        out.push(b);
+      }
+    }
+    if (!out.length || out[0].type !== "text") out.unshift({ id: "b" + (++this.nextBlockUid), type: "text", text: "" });
+    if (out[out.length - 1].type !== "text") out.push({ id: "b" + (++this.nextBlockUid), type: "text", text: "" });
+    this.blocks = out;
+    if (!this.blocks.some((b) => b.id === this.activeBlockId && b.type === "text")) {
+      const firstText = this.blocks.find((b) => b.type === "text");
+      this.activeBlockId = firstText.id;
+      this.activeCaret = firstText.text.length;
+    }
+  }
+  insertInlineImages(files) {
+    if (!files.length) return;
+    let idx = this.blocks.findIndex((b) => b.id === this.activeBlockId && b.type === "text");
+    if (idx < 0) idx = this.blocks.length - 1;
+    const blk = this.blocks[idx];
+    const pos = Math.max(0, Math.min(this.activeCaret ?? blk.text.length, blk.text.length));
+    const before = blk.text.slice(0, pos).replace(/\s+$/, "");
+    const after = blk.text.slice(pos).replace(/^\s+/, "");
+    const inserted = [];
+    for (const f of files) {
+      const ext = (f.name.match(/\.([a-z0-9]+)$/i)?.[1] || (f.type.split("/")[1] || "jpg")).toLowerCase().replace("jpeg", "jpg");
+      const id = "img_" + (++this.nextBlockUid);
+      this.atts.push({ kind: "img", id, inline: true, blob: f, ext, url: URL.createObjectURL(f), name: f.name });
+      inserted.push({ id: "bi_" + this.nextBlockUid, type: "img", attId: id });
+    }
+    const nextTextId = "b" + (++this.nextBlockUid);
+    blk.text = before;
+    this.blocks.splice(idx + 1, 0, ...inserted, { id: nextTextId, type: "text", text: after });
+    this.activeBlockId = nextTextId;
+    this.activeCaret = 0;
+    this.renderBlocks(nextTextId, 0);
+    this.renderAtts();
+    this.update();
+    this.box.classList.add("is-open");
+  }
+  serializeBlocks() {
+    if (!this.hasInlineImages()) return this.ta?.value || "";
+    const parts = [];
+    for (const b of this.blocks) {
+      if (b.type === "text") {
+        if (b.text.trim()) parts.push(b.text.trim());
+      } else {
+        parts.push(`[[DS_IMG:${b.attId}]]`);
+      }
+    }
+    return parts.join("\n\n");
+  }
+  setBackdate(ymdStr) {
+    if (!ymdStr) {
+      this.when = null;
+      this.buji = false;
+    } else {
+      const [y, m, d] = ymdStr.split("-").map(Number);
+      this.when = new Date(y, m - 1, d, 21, 30);
+      this.buji = true;
+    }
+    const tp = this.q(".ds-timepop");
+    if (tp) tp.hidden = true;
+    this.renderQuickTags();
+    this.update();
+  }
+  renderQuickTags() {
+    const qel = this.q(".ds-qtags");
+    if (!qel || this.mode !== "new") return;
+    const top = this.host.tagCounts().slice(0, 8).map(([t]) => t);
+    const merged = dedupe([...this.tags, ...top]);
+    if (!merged.length) {
+      qel.innerHTML = "";
+      qel.hidden = true;
+      return;
+    }
+    qel.hidden = false;
+    qel.innerHTML = merged.map((t) => `<button type="button" class="ds-qtag${this.tags.includes(t) ? " is-on" : ""}" data-a="qtag" data-t="${esc(t)}">#${esc(t)}</button>`).join("");
   }
   dismissTools(keep = null) {
     let dismissed = false, fieldsChanged = false;
@@ -671,11 +807,26 @@ var Composer = class {
     return dismissed;
   }
   empty() {
-    return !this.ta.value.trim() && !this.tags.length && !this.atts.length && !this.sub.trim();
+    const txt = this.hasInlineImages() ? this.serializeBlocks() : (this.ta?.value || "");
+    return !txt.trim() && !this.tags.length && !this.atts.length && !this.sub.trim();
   }
   bind() {
     const b = this.box;
-    b.addEventListener("focusin", () => b.classList.add("is-open"));
+    b.addEventListener("focusin", (e) => {
+      b.classList.add("is-open");
+      if (e.target.matches("textarea.ds-body")) {
+        this.ta = e.target;
+        this.activeBlockId = e.target.dataset.blockId || this.activeBlockId;
+        this.activeCaret = e.target.selectionStart ?? e.target.value.length;
+      }
+    });
+    ["keyup", "mouseup"].forEach((ev) => b.addEventListener(ev, (e) => {
+      if (e.target.matches("textarea.ds-body")) {
+        this.ta = e.target;
+        this.activeBlockId = e.target.dataset.blockId || this.activeBlockId;
+        this.activeCaret = e.target.selectionStart ?? e.target.value.length;
+      }
+    }));
     b.addEventListener("focusout", () => window.setTimeout(() => {
       if (this.mode === "new" && !b.contains(document.activeElement) && this.empty() && !this.rec) b.classList.remove("is-open");
     }, 150));
@@ -684,13 +835,26 @@ var Composer = class {
     });
     b.addEventListener("input", (e) => {
       const t = e.target;
-      if (t === this.ta) this.autosize();
+      if (t.matches("textarea.ds-body")) {
+        this.ta = t;
+        const blk = this.blocks.find((x) => x.id === t.dataset.blockId);
+        if (blk) blk.text = t.value;
+        this.activeBlockId = t.dataset.blockId || this.activeBlockId;
+        this.activeCaret = t.selectionStart ?? t.value.length;
+        this.autosize(t);
+      }
       if (t.classList.contains("ds-taginput")) {
         if (/[\s,，]$/.test(t.value)) this.addTag(t.value);
         else this.tagAC();
       }
       if (t.classList.contains("ds-subinput")) this.sub = t.value;
-      if (t.classList.contains("ds-when")) this.when = t.value ? new Date(t.value) : null;
+      if (t.classList.contains("ds-when")) {
+        this.when = t.value ? new Date(t.value) : null;
+        if (this.when) {
+          const todayLog = logicalDate(/* @__PURE__ */ new Date(), this.host.dayStartHour());
+          if (logicalDate(this.when, this.host.dayStartHour()) < todayLog) this.buji = true;
+        }
+      }
       this.update();
     });
     b.addEventListener("keydown", (e) => {
@@ -700,7 +864,7 @@ var Composer = class {
         if (dismissed || this.mode === "edit") {
           e.preventDefault();
           e.stopPropagation();
-          if (dismissed) this.ta.focus({ preventScroll: true });
+          if (dismissed) this.ta?.focus({ preventScroll: true });
           else this.host.cancel?.();
           return;
         }
@@ -729,13 +893,14 @@ var Composer = class {
         if (e.key === "Backspace" && !t.value && this.tags.length) {
           this.tags.pop();
           this.renderFields(true);
+          this.renderQuickTags();
           this.update();
         }
       }
       if (t.classList.contains("ds-subinput") && e.key === "Enter" && !e.isComposing) {
         e.preventDefault();
         this.dismissTools();
-        this.ta.focus();
+        this.ta?.focus();
       }
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
@@ -749,7 +914,7 @@ var Composer = class {
       if (a === "sub") {
         if (this.inline && this.subOpen) {
           this.dismissTools();
-          this.ta.focus({ preventScroll: true });
+          this.ta?.focus({ preventScroll: true });
         } else {
           this.dismissTools("sub");
           this.subOpen = !this.subOpen || !!this.sub;
@@ -760,7 +925,7 @@ var Composer = class {
       if (a === "tags") {
         if (this.inline && this.tagsOpen) {
           this.dismissTools();
-          this.ta.focus({ preventScroll: true });
+          this.ta?.focus({ preventScroll: true });
         } else {
           this.dismissTools("tags");
           this.tagsOpen = true;
@@ -768,6 +933,14 @@ var Composer = class {
           this.q(".ds-taginput")?.focus();
           this.tagAC();
         }
+      }
+      if (a === "qtag") {
+        const tag = t.dataset.t;
+        if (this.tags.includes(tag)) this.tags = this.tags.filter((x) => x !== tag);
+        else this.tags.push(tag);
+        this.renderFields();
+        this.renderQuickTags();
+        this.update();
       }
       if (a === "closefield") {
         if (t.dataset.f === "sub") {
@@ -778,20 +951,46 @@ var Composer = class {
           this.tags = [];
         }
         this.renderFields();
+        this.renderQuickTags();
         this.update();
-        this.ta.focus();
+        this.ta?.focus();
       }
       if (a === "rmtag") {
         this.tags = this.tags.filter((x) => x !== t.dataset.t);
         this.renderFields(true);
+        this.renderQuickTags();
         this.update();
       }
       if (a === "pick") {
         this.addTag(t.dataset.t);
       }
       if (a === "rmatt") {
-        const [x] = this.atts.splice(+t.dataset.i, 1);
-        if (x) URL.revokeObjectURL(x.url);
+        const idx = +t.dataset.i;
+        const [x] = this.atts.splice(idx, 1);
+        if (x) {
+          URL.revokeObjectURL(x.url);
+          if (x.id) {
+            this.blocks = this.blocks.filter((blk) => blk.attId !== x.id);
+            this.normalizeBlocks();
+            this.renderBlocks();
+          }
+        }
+        this.renderAtts();
+        this.update();
+      }
+      if (a === "rmimgblock") {
+        const bid = t.dataset.bid;
+        const blk = this.blocks.find((x) => x.id === bid);
+        if (blk?.attId) {
+          const idx = this.atts.findIndex((x) => x.id === blk.attId);
+          if (idx >= 0) {
+            URL.revokeObjectURL(this.atts[idx].url);
+            this.atts.splice(idx, 1);
+          }
+        }
+        this.blocks = this.blocks.filter((x) => x.id !== bid);
+        this.normalizeBlocks();
+        this.renderBlocks();
         this.renderAtts();
         this.update();
       }
@@ -800,17 +999,28 @@ var Composer = class {
       if (a === "time") {
         this.dismissTools("time");
         const p = this.q(".ds-timepop");
+        if (!p) return;
         p.hidden = !p.hidden;
-        if (!p.hidden) {
-          const w = this.q(".ds-when");
-          const d = new Date((this.when || /* @__PURE__ */ new Date()).getTime());
-          d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-          w.value = d.toISOString().slice(0, 16);
-        }
+        if (!p.hidden) this.syncTimeInput();
       }
       if (a === "now") {
         this.when = null;
-        this.q(".ds-timepop").hidden = true;
+        this.buji = false;
+        const p = this.q(".ds-timepop");
+        if (p) p.hidden = true;
+        this.update();
+      }
+      if (a === "preset-yest" || a === "preset-prev2") {
+        const d = /* @__PURE__ */ new Date();
+        d.setDate(d.getDate() - (a === "preset-yest" ? 1 : 2));
+        d.setHours(21, 30, 0, 0);
+        this.when = d;
+        this.buji = true;
+        this.syncTimeInput();
+        this.update();
+      }
+      if (a === "togglebuji") {
+        this.buji = !this.buji;
         this.update();
       }
       if (a === "pv") {
@@ -825,26 +1035,32 @@ var Composer = class {
     });
     this.q(".ds-fileinput").addEventListener("change", (ev) => {
       const inp = ev.target;
-      for (const f of Array.from(inp.files || [])) {
-        const ext = (f.name.match(/\.([a-z0-9]+)$/i)?.[1] || (f.type.split("/")[1] || "jpg")).toLowerCase().replace("jpeg", "jpg");
-        this.atts.push({ kind: "img", blob: f, ext, url: URL.createObjectURL(f), name: f.name });
-      }
+      const files = Array.from(inp.files || []);
       inp.value = "";
-      this.renderAtts();
-      this.update();
-      this.box.classList.add("is-open");
+      this.insertInlineImages(files);
     });
   }
-  autosize() {
-    this.ta.style.height = "auto";
-    this.ta.style.height = Math.max(this.ta.scrollHeight, 0) + "px";
+  syncTimeInput() {
+    const w = this.q(".ds-when");
+    if (!w) return;
+    const d = new Date((this.when || /* @__PURE__ */ new Date()).getTime());
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    w.value = d.toISOString().slice(0, 16);
+  }
+  autosize(only = null) {
+    const list = only ? [only] : [...(this.box?.querySelectorAll("textarea.ds-body") || [])];
+    for (const ta of list) {
+      ta.style.height = "auto";
+      const minH = ta.classList.contains("is-solo") && this.mode === "new" ? 130 : 34;
+      ta.style.height = Math.max(ta.scrollHeight, minH) + "px";
+    }
   }
   /* ---- 副标题 / 标签字段（点图标才出现） ---- */
   renderFields(keepFocus = false) {
     const f = this.q(".ds-fields");
     let h = "";
-    if (this.subOpen || this.sub && !this.inline) h += `<span class="ds-fld ds-fld-sub"><span class="ds-lbl" data-icon="heading"></span><input class="ds-subinput" placeholder="\u526F\u6807\u9898" value="${esc(this.sub)}"><button type="button" class="ds-x" data-a="closefield" data-f="sub" aria-label="\u53BB\u6389\u526F\u6807\u9898" data-icon="x"></button></span>`;
-    if (this.tagsOpen || this.tags.length && !this.inline) h += `<span class="ds-fld ds-fld-tags"><span class="ds-lbl" data-icon="hash"></span>${this.tags.map((t) => `<span class="ds-tchip">#${esc(t)}<button type="button" data-a="rmtag" data-t="${esc(t)}" aria-label="\u79FB\u9664" data-icon="x"></button></span>`).join("")}<input class="ds-taginput" placeholder="${this.tags.length ? "" : "\u6807\u7B7E"}" autocomplete="off" enterkeyhint="done"></span><div class="ds-pop ds-tagpop" hidden></div>`;
+    if (this.subOpen || this.sub && !this.inline) h += `<span class="ds-fld ds-fld-sub"><span class="ds-lbl" data-icon="heading"></span><input class="ds-subinput" placeholder="\u526F\u6807\u9898" value="${esc(this.sub)}"><button type="button" class="ds-x" data-a="closefield" data-f="sub" data-icon="x"><span class="ds-sr-only">\u53BB\u6389\u526F\u6807\u9898</span></button></span>`;
+    if (this.tagsOpen || this.tags.length && !this.inline && this.mode === "edit") h += `<span class="ds-fld ds-fld-tags"><span class="ds-lbl" data-icon="hash"></span>${this.tags.map((t) => `<span class="ds-tchip">#${esc(t)}<button type="button" data-a="rmtag" data-t="${esc(t)}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("")}<input class="ds-taginput" placeholder="${this.tags.length ? "" : "\u8F93\u5165\u65B0\u6807\u7B7E"}" autocomplete="off" enterkeyhint="done"></span><div class="ds-pop ds-tagpop" hidden></div>`;
     f.innerHTML = h;
     f.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
     this.q("[data-a=sub]")?.classList.toggle("is-active", !!(this.subOpen || this.sub && !this.inline));
@@ -874,14 +1090,16 @@ var Composer = class {
     if (okTag(t) && !this.tags.includes(t)) this.tags.push(t);
     this.tagsOpen = true;
     this.renderFields(true);
+    this.renderQuickTags();
     const p = this.q(".ds-tagpop");
     if (p) p.hidden = true;
     this.update();
   }
-  /* ---- 附件 ---- */
+  /* ---- 附件（非行内附件，如语音条） ---- */
   renderAtts() {
     const el = this.q(".ds-att");
-    el.innerHTML = this.atts.map((a, i) => a.kind === "img" ? `<span class="ds-a ds-a-img"><img alt="" src="${a.url}"><button type="button" class="ds-ax" data-a="rmatt" data-i="${i}" aria-label="\u79FB\u9664" data-icon="x"></button></span>` : `<span class="ds-a ds-a-voice"><audio src="${a.url}" preload="metadata"></audio><button type="button" class="ds-aplay" data-icon="play" aria-label="\u8BD5\u542C"></button>\u8BED\u97F3 ${fmtDur(a.dur || 0)}<button type="button" class="ds-ax" data-a="rmatt" data-i="${i}" aria-label="\u79FB\u9664" data-icon="x"></button></span>`).join("");
+    const nonInline = this.atts.map((a, i) => ({ a, i })).filter(({ a }) => !a.inline);
+    el.innerHTML = nonInline.map(({ a, i }) => a.kind === "img" ? `<span class="ds-a ds-a-img"><img alt="" src="${a.url}"><button type="button" class="ds-ax" data-a="rmatt" data-i="${i}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664</span></button></span>` : `<span class="ds-a ds-a-voice"><audio src="${a.url}" preload="metadata"></audio><button type="button" class="ds-aplay" data-icon="play"><span class="ds-sr-only">\u8BD5\u542C</span></button>\u8BED\u97F3 ${fmtDur(a.dur || 0)}<button type="button" class="ds-ax" data-a="rmatt" data-i="${i}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("");
     el.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
     el.querySelectorAll(".ds-aplay").forEach((btn) => btn.addEventListener("click", () => {
       const au = btn.parentElement.querySelector("audio");
@@ -933,7 +1151,6 @@ var Composer = class {
     btn.classList.add("is-rec");
     btn.innerHTML = '<span class="ds-dot"></span><span class="ds-rt">0:00</span><span class="ds-stop" data-icon="square"></span>';
     icon(btn.querySelector(".ds-stop"), "square");
-    btn.setAttribute("aria-label", "\u7ED3\u675F\u5F55\u97F3");
     rec.timer = window.setInterval(() => {
       const s = btn.querySelector(".ds-rt");
       if (s) s.textContent = fmtDur((Date.now() - rec.t0) / 1e3);
@@ -953,14 +1170,13 @@ var Composer = class {
     const btn = this.q("[data-a=rec]");
     if (btn) {
       btn.classList.remove("is-rec");
-      btn.innerHTML = "";
-      icon(btn, "mic");
-      btn.setAttribute("aria-label", "\u5F55\u97F3");
+      btn.innerHTML = '<span data-icon="mic"></span><span class="ds-sr-only">\u5F55\u97F3</span>';
+      icon(btn.querySelector("[data-icon]"), "mic");
     }
   }
   /* ---- 状态 ---- */
   state() {
-    let body = this.ta.value.replace(/\s+$/, "");
+    let body = (this.hasInlineImages() ? this.serializeBlocks() : (this.ta?.value || "")).replace(/\s+$/, "");
     const lines = body.split("\n");
     const tags = [...this.tags];
     while (lines.length && isTagLine(lines[lines.length - 1])) {
@@ -973,7 +1189,11 @@ var Composer = class {
     body = lines.join("\n");
     const pending = normTag(this.q(".ds-taginput")?.value || "");
     if (okTag(pending) && !tags.includes(pending)) tags.push(pending);
-    return { body, sub: this.sub.trim(), tags, when: this.when, atts: this.atts };
+    let sub = this.sub.trim();
+    if (this.mode === "new" && this.buji && !/补记/.test(sub)) {
+      sub = sub ? `\u8865\u8BB0 \xB7 ${sub}` : "\u8865\u8BB0";
+    }
+    return { body, sub, tags, when: this.when, atts: this.atts };
   }
   editSignature() {
     const state = this.state();
@@ -992,17 +1212,24 @@ var Composer = class {
     const dayTxt = actualDate === today ? "\u4ECA\u5929" : actualDate === ymd(y) ? "\u6628\u5929" : recordDateLabel(actualDate, date);
     const meta = this.q(".ds-meta");
     if (meta) {
-      meta.innerHTML = late ? `${recordDateLabel(actualDate, date)} ${hm(w)}` : `<span class="ds-full">${dayTxt} </span>${hm(w)}`;
-      meta.classList.toggle("is-late", late);
-      meta.setAttribute("aria-label", "\u5199\u5165\u65F6\u95F4\uFF0C\u70B9\u51FB\u4FEE\u6539");
+      const prefix = this.buji ? "\u8865\u8BB0 \xB7 " : "";
+      const txt = late ? `${prefix}${recordDateLabel(actualDate, date)} ${hm(w)}` : `${prefix}${dayTxt} ${hm(w)}`;
+      meta.innerHTML = `<span data-icon="clock"></span><span>${esc(txt)}</span><span data-icon="chevron-down"></span>`;
+      meta.querySelectorAll("[data-icon]").forEach((el) => icon(el, el.dataset.icon));
+      meta.classList.toggle("is-late", late || this.buji);
+    }
+    const bujiBtn = this.q(".ds-buji-toggle");
+    if (bujiBtn) {
+      bujiBtn.classList.toggle("is-on", this.buji);
+      bujiBtn.textContent = this.buji ? "\u2713 \u6807\u8BB0\u4E3A\u8865\u8BB0" : "\u6807\u8BB0\u4E3A\u8865\u8BB0";
     }
     this.box.classList.toggle("is-late", late);
     const hint = this.q(".ds-hint");
     if (hint) hint.textContent = late ? `\u51CC\u6668 ${hour} \u70B9\u524D\uFF0C\u8BB0\u5230 ${+date.slice(5, 7)}\u6708${+date.slice(8)}\u65E5` : "";
     const send = this.q(".ds-send");
-    send.disabled = this.busy || !st.body.trim() && !st.tags.length && !st.sub && !st.atts.length;
+    if (send) send.disabled = this.busy || !st.body.trim() && !st.tags.length && !st.sub && !st.atts.length;
     const pv = this.q(".ds-preview");
-    if (!pv.hidden) {
+    if (pv && !pv.hidden) {
       const p = this.host.previewFor(st);
       if (!p) {
         pv.innerHTML = '<div class="ds-pv-h">\u65E0\u6CD5\u9884\u89C8</div>';
@@ -1024,7 +1251,7 @@ var Composer = class {
     }
     const st = this.state();
     if (!st.body.trim() && !st.tags.length && !st.sub && !st.atts.length) {
-      this.ta.focus();
+      this.ta?.focus();
       return;
     }
     this.busy = true;
@@ -1032,18 +1259,25 @@ var Composer = class {
     try {
       await this.host.submit(st);
       if (this.mode === "new") {
-        this.ta.value = "";
         this.tags = [];
         this.atts.forEach((a) => URL.revokeObjectURL(a.url));
         this.atts = [];
+        this.blocks = [{ id: "b" + (++this.nextBlockUid), type: "text", text: "" }];
+        this.activeBlockId = this.blocks[0].id;
+        this.activeCaret = 0;
         this.sub = "";
         this.when = null;
+        this.buji = false;
         this.subOpen = this.tagsOpen = false;
+        this.renderBlocks();
         this.renderAtts();
         this.renderFields();
+        this.renderQuickTags();
         this.autosize();
         const pv = this.q(".ds-preview");
         if (pv) pv.hidden = true;
+        const tp = this.q(".ds-timepop");
+        if (tp) tp.hidden = true;
         this.q("[data-a=pv]")?.classList.remove("is-active");
         this.box.classList.remove("is-open");
       }
@@ -1231,6 +1465,22 @@ var Lightbox = class {
 };
 
 // src/view.ts
+var PALETTES = [
+  ["auto", "\u8DDF\u968F Obsidian \u4E3B\u9898\u8272\uFF08\u9ED8\u8BA4\uFF09"],
+  ["mono", "\u6781\u7B80\u66DC\u77F3\u9ED1"],
+  ["blue", "\u6674\u7A7A\u94B4\u84DD"],
+  ["green", "\u6668\u96FE\u62B9\u8336"],
+  ["violet", "\u4E01\u9999\u66AE\u7D2B"],
+  ["coral", "\u6696\u674F\u9676\u6A59"]
+];
+function extractCardImages(html) {
+  const imgs = [];
+  const re = /<figure class="ds-img"><img\b[^>]*\bsrc="([^"]+)"[^>]*\bdata-path="([^"]*)"[^>]*><\/figure>/g;
+  let m;
+  while ((m = re.exec(html))) imgs.push({ url: m[1], path: m[2] });
+  return imgs;
+}
+var CLAMP_PX = 166;
 var VIEW_TYPE = "diary-stream-view";
 var DiaryStreamView = class extends import_obsidian3.ItemView {
   constructor(leaf, plugin) {
@@ -1239,10 +1489,12 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     __publicField(this, "root");
     __publicField(this, "composer", null);
     __publicField(this, "editComposer", null);
-    __publicField(this, "S", { q: "", filter: "", tag: null, date: null, month: null, editing: null, menu: null, confirm: null, limit: 30, showCal: false, searchOpen: false });
+    __publicField(this, "S", { q: "", filter: "", tag: null, date: null, month: null, editing: null, menu: null, confirm: null, limit: 30, showCal: false, sheet: null, searchOpen: false });
     __publicField(this, "pending", false);
     __publicField(this, "off", null);
     __publicField(this, "ro", null);
+    __publicField(this, "vvHandler", null);
+    __publicField(this, "onSheetKeydown", null);
     __publicField(this, "toastTimer", 0);
     __publicField(this, "lightbox", null);
     __publicField(this, "toTopBtn", null);
@@ -1288,39 +1540,137 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
   get settings() {
     return this.plugin.data.settings;
   }
+  applyPalette() {
+    if (!this.root) return;
+    const pal = this.settings.palette || "auto";
+    for (const [key] of PALETTES) this.root.classList.remove("ds-pal-" + key);
+    this.root.classList.add("ds-pal-" + pal);
+  }
+  setWriteOrigin(triggerEl) {
+    const sheet = this.root?.querySelector(".ds-write-sheet");
+    const btn = triggerEl || this.root?.querySelector(".ds-fab");
+    if (!sheet || !btn) return;
+    const s = sheet.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    if (!s.width || !s.height || !b.width || !b.height) return;
+    const top = Math.max(0, Math.min(s.height - 20, b.top - s.top));
+    const right = Math.max(0, Math.min(s.width - 20, s.right - b.right));
+    const bottom = Math.max(0, Math.min(s.height - 20, s.bottom - b.bottom));
+    const left = Math.max(0, Math.min(s.width - 20, b.left - s.left));
+    const rad = Math.min(b.width, b.height) / 2;
+    sheet.style.setProperty("--ox-t", `${top.toFixed(1)}px`);
+    sheet.style.setProperty("--ox-r", `${right.toFixed(1)}px`);
+    sheet.style.setProperty("--ox-b", `${bottom.toFixed(1)}px`);
+    sheet.style.setProperty("--ox-l", `${left.toFixed(1)}px`);
+    sheet.style.setProperty("--ox-rad", `${rad.toFixed(1)}px`);
+  }
+  setSheet(next, triggerEl = null) {
+    const prev = this.S.sheet;
+    if (prev === next) return;
+    if (next === "write") {
+      this.setWriteOrigin(triggerEl);
+      this.composer?.renderQuickTags();
+      const ws = this.root.querySelector(".ds-write-sheet");
+      if (ws) void ws.offsetWidth;
+    } else if (prev === "write") {
+      this.setWriteOrigin(this.root.querySelector(".ds-fab"));
+    }
+    this.S.sheet = next;
+    this.S.showCal = next === "cal";
+    this.root.toggleClass("show-cal", next === "cal");
+    this.root.toggleClass("has-sheet", !!next);
+    this.root.querySelector(".ds-backdrop")?.classList.toggle("is-open", !!next);
+    this.root.querySelector(".ds-write-sheet")?.classList.toggle("is-open", next === "write");
+    this.root.querySelector(".ds-side")?.classList.toggle("is-open", next === "cal");
+    this.root.querySelector(".ds-filter-sheet")?.classList.toggle("is-open", next === "filter");
+    this.root.querySelector(".ds-fab")?.classList.toggle("is-hidden", !!next);
+    if (next === "cal") {
+      window.requestAnimationFrame(() => this.renderHeat());
+    }
+    if (next === "write") {
+      window.setTimeout(() => {
+        this.composer?.autosize();
+        this.composer?.ta?.focus({ preventScroll: false });
+      }, 220);
+    }
+  }
+  bindSheetDrag(sheet) {
+    if (!sheet) return;
+    let startY = 0, dy = 0, dragging = false;
+    sheet.addEventListener("pointerdown", (e) => {
+      if (!sheet.classList.contains("is-open")) return;
+      if (!e.target.closest(".ds-sheet-handle,.ds-sheet-head,.ds-sheet-write-head") || e.target.closest("button,input")) return;
+      dragging = true;
+      startY = e.clientY;
+      dy = 0;
+      sheet.classList.add("is-dragging");
+      sheet.setPointerCapture?.(e.pointerId);
+    });
+    sheet.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      dy = Math.max(0, e.clientY - startY);
+      sheet.style.transform = dy ? `translateY(${dy}px)` : "";
+    });
+    const finish = () => {
+      if (!dragging) return;
+      dragging = false;
+      sheet.classList.remove("is-dragging");
+      sheet.style.transform = "";
+      if (dy > 80) this.setSheet(null);
+    };
+    sheet.addEventListener("pointerup", finish);
+    sheet.addEventListener("pointercancel", finish);
+  }
   async onOpen() {
     const c = this.contentEl;
     c.empty();
     c.addClass("ds-view");
     this.root = c.createDiv({ cls: "ds-root" });
+    this.applyPalette();
     this.root.innerHTML = `
       <div class="ds-wrap">
         <div class="ds-mhead">
-          <div class="ds-brand"><span class="ds-logo" data-icon="book-open"></span>\u65E5\u8BB0</div>
-          <div class="ds-search-slot"><div class="ds-searchbox"><button type="button" class="ds-searchbtn" data-act="togglesearch" aria-expanded="false"><span data-icon="search"></span><span class="ds-sr-only">\u641C\u7D22\u65E5\u8BB0</span></button><div class="ds-searchfield" aria-hidden="true"><label class="ds-search-label"><span class="ds-sr-only">\u641C\u7D22\u5185\u5BB9\u3001\u526F\u6807\u9898\u6216\u6807\u7B7E</span><input type="search" class="ds-q" placeholder="\u641C\u7D22\u65E5\u8BB0\u2026" enterkeyhint="search" disabled></label><button type="button" class="ds-searchclear" data-act="clearsearch" disabled hidden><span data-icon="x"></span><span class="ds-sr-only">\u6E05\u7A7A\u641C\u7D22</span></button></div></div></div>
-          <button type="button" class="ds-calbtn" data-act="togglecal"><span data-icon="calendar"></span><span class="ds-caltext">\u65E5\u5386</span></button>
+          <button type="button" class="ds-calbtn ds-month-trigger" data-act="togglecal"><span class="ds-month-title"></span><span class="ds-month-sub"></span><span class="ds-month-chev" data-icon="chevron-down"></span></button>
+          <div class="ds-head-actions">
+            <div class="ds-search-slot"><div class="ds-searchbox"><button type="button" class="ds-searchbtn" data-act="togglesearch" aria-expanded="false"><span data-icon="search"></span><span class="ds-sr-only">\u641C\u7D22\u65E5\u8BB0</span></button><div class="ds-searchfield" aria-hidden="true"><label class="ds-search-label"><span class="ds-sr-only">\u641C\u7D22\u5185\u5BB9\u3001\u526F\u6807\u9898\u6216\u6807\u7B7E</span><input type="search" class="ds-q" placeholder="\u641C\u7D22\u65E5\u8BB0\u2026" enterkeyhint="search" disabled></label><button type="button" class="ds-searchclear" data-act="clearsearch" disabled hidden><span data-icon="x"></span><span class="ds-sr-only">\u6E05\u7A7A\u641C\u7D22</span></button></div></div></div>
+            <button type="button" class="ds-icon-btn ds-filter-trigger ds-only-narrow" data-act="togglefilter"><span data-icon="sliders-horizontal"></span><span class="ds-sr-only">\u7B5B\u9009\u4E0E\u6807\u7B7E</span></button>
+          </div>
         </div>
-        <aside class="ds-side">
-          <div class="ds-box"><div class="ds-stats"></div><div class="ds-heat"></div></div>
-          <div class="ds-box"><div class="ds-mcal"></div></div>
-          <div class="ds-box ds-only-wide"><h5>\u7B5B\u9009</h5><div class="ds-chips ds-filterlist"></div></div>
-          <div class="ds-box ds-only-wide"><h5>\u6807\u7B7E</h5><div class="ds-taglist"></div></div>
+        <aside class="ds-side ds-sheet-mobile">
+          <div class="ds-sheet-handle ds-only-narrow"></div>
+          <div class="ds-sheet-head ds-only-narrow"><span class="ds-sheet-title">\u65F6\u5149\u8DB3\u8FF9</span><button type="button" class="ds-sheet-close" data-act="closesheet" data-icon="x"><span class="ds-sr-only">\u5173\u95ED</span></button></div>
+          <div class="ds-side-body">
+            <div class="ds-box"><div class="ds-stats"></div><div class="ds-heat"></div></div>
+            <div class="ds-box"><div class="ds-mcal"></div></div>
+            <div class="ds-box ds-only-wide"><h5>\u7B5B\u9009</h5><div class="ds-chips ds-filterlist"></div></div>
+            <div class="ds-box ds-only-wide"><h5>\u6807\u7B7E</h5><div class="ds-taglist"></div></div>
+          </div>
         </aside>
         <main class="ds-main">
-          <div class="ds-entry"><div class="ds-composer"></div><div class="ds-search-dock" hidden></div></div>
+          <div class="ds-entry"><div class="ds-search-dock" hidden></div></div>
           <div class="ds-anchor"></div>
-          <div class="ds-sticky"><div class="ds-top">
-            <div class="ds-chips ds-hscroll ds-only-narrow ds-mchips"></div></div>
-          <div class="ds-filterbar" hidden></div></div>
+          <div class="ds-sticky"><div class="ds-filterbar" hidden></div></div>
           <div class="ds-stream-home"><div class="ds-stream"></div></div>
         </main>
       </div>
+      <button type="button" class="ds-fab" data-act="openwrite"><span data-icon="pen-line"></span><span class="ds-sr-only">\u5199\u65E5\u8BB0</span></button>
+      <div class="ds-backdrop" data-act="closesheet"></div>
+      <section class="ds-sheet ds-write-sheet" role="dialog" aria-modal="true" aria-label="\u5199\u65E5\u8BB0">
+        <div class="ds-sheet-handle"></div>
+        <div class="ds-composer"></div>
+      </section>
+      <section class="ds-sheet ds-filter-sheet" role="dialog" aria-modal="true" aria-label="\u7B5B\u9009\u4E0E\u6807\u7B7E">
+        <div class="ds-sheet-handle"></div>
+        <div class="ds-sheet-head"><span class="ds-sheet-title">\u7B5B\u9009\u4E0E\u6807\u7B7E</span><button type="button" class="ds-sheet-close" data-act="closesheet" data-icon="x"><span class="ds-sr-only">\u5173\u95ED</span></button></div>
+        <div class="ds-sheet-body"><div class="ds-sheet-sec"><h5>\u6309\u65F6\u95F4\u4E0E\u7C7B\u578B</h5><div class="ds-chips ds-mfilterlist"></div></div><div class="ds-sheet-sec"><h5>\u5E38\u7528\u6807\u7B7E</h5><div class="ds-taglist ds-mtaglist"></div></div></div>
+      </section>
       <div class="ds-toast" hidden></div>
       <div class="ds-confirm" hidden></div>`;
     this.icons(this.root);
     this.containerEl.addClass("ds-leaf");
-    this.toTopBtn = this.containerEl.createEl("button", { cls: "ds-totop", attr: { type: "button", "aria-label": "\u56DE\u5230\u9876\u90E8", title: "\u56DE\u5230\u9876\u90E8" } });
+    this.toTopBtn = this.containerEl.createEl("button", { cls: "ds-totop", attr: { type: "button" } });
     (0, import_obsidian3.setIcon)(this.toTopBtn, "arrow-up");
+    this.toTopBtn.createSpan({ cls: "ds-sr-only", text: "\u56DE\u5230\u9876\u90E8" });
     this.toTopBtn.addEventListener("click", () => {
       this.contentEl.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -1334,17 +1684,20 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       dayStartHour: () => this.settings.dayStartHour,
       previewFor: (st) => this.previewNew(st),
       submit: async (st) => {
+        const wasBuji = this.composer?.buji;
         const r = await this.store.append(st.when || /* @__PURE__ */ new Date(), { sub: st.sub, body: st.body, tags: st.tags }, st.atts);
         this.S.date = null;
         this.S.filter = "";
         this.S.tag = null;
         this.S.q = "";
         this.root.querySelector(".ds-q").value = "";
+        this.setSheet(null);
         this.renderAll();
-        this.toast(`\u5DF2\u5199\u5165 ${r.path}${r.created ? "\uFF08\u65B0\u5EFA\uFF09" : ""}`);
+        this.toast(`${wasBuji ? "\u5DF2\u8865\u8BB0\u5230" : "\u5DF2\u5199\u5165"} ${r.path}${r.created ? "\uFF08\u65B0\u5EFA\uFF09" : ""}`);
         this.flash(r.path);
       }
     }, "new");
+    [".ds-write-sheet", ".ds-side", ".ds-filter-sheet"].forEach((sel) => this.bindSheetDrag(this.root.querySelector(sel)));
     const q = this.root.querySelector(".ds-q");
     q.addEventListener("input", () => {
       this.S.q = q.value;
@@ -1363,6 +1716,22 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         this.toggleSearch(false);
       }
     });
+    this.onSheetKeydown = (e) => {
+      if (e.key === "Escape" && !e.isComposing && this.S.sheet && !this.S.editing && !this.S.confirm) {
+        if (this.S.sheet === "write" && this.composer?.dismissTools()) return;
+        e.preventDefault();
+        this.setSheet(null);
+      }
+    };
+    this.root.ownerDocument.addEventListener("keydown", this.onSheetKeydown);
+    const vv = this.root.ownerDocument.defaultView?.visualViewport;
+    if (vv) {
+      this.vvHandler = () => {
+        this.root?.style.setProperty("--ds-vvh", `${Math.round(vv.height)}px`);
+      };
+      vv.addEventListener("resize", this.vvHandler);
+      this.vvHandler();
+    }
     this.root.addEventListener("click", (e) => this.onClick(e));
     this.root.ownerDocument.addEventListener("click", this.onSearchOutside, true);
     const updateWidth = () => {
@@ -1370,6 +1739,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       this.root.toggleClass("is-compact", this.root.clientWidth < 480);
       const heat = this.root.querySelector(".ds-heat");
       if (heat.clientWidth && heat.dataset.weeks !== String(this.heatWeeks())) this.renderHeat();
+      if (!this.S.sheet) this.setWriteOrigin();
     };
     this.ro = new ResizeObserver(updateWidth);
     this.ro.observe(this.root);
@@ -1393,6 +1763,9 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     this.searchAnimations.forEach((animation) => animation.cancel());
     this.searchModal?.close();
     this.searchModal?.remove();
+    if (this.onSheetKeydown) this.root.ownerDocument.removeEventListener("keydown", this.onSheetKeydown);
+    const vv = this.root?.ownerDocument?.defaultView?.visualViewport;
+    if (vv && this.vvHandler) vv.removeEventListener("resize", this.vvHandler);
     this.root.ownerDocument.removeEventListener("click", this.onSearchOutside, true);
     this.root.ownerDocument.defaultView.clearTimeout(this.searchOutsideTimer);
     this.contentEl.removeEventListener("scroll", this.onScroll);
@@ -1412,7 +1785,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
   }
   /* ---------------- 数据 ---------------- */
   isSearchInteraction(target) {
-    return [".ds-main", ".ds-side", ".ds-calbtn", ".ds-confirm", ".ds-toast"].some((selector) => this.root.querySelector(selector)?.contains(target)) || !!this.searchModal?.contains(target) || !!this.lightbox?.el.contains(target);
+    return [".ds-main", ".ds-side", ".ds-calbtn", ".ds-filter-trigger", ".ds-filter-sheet", ".ds-write-sheet", ".ds-fab", ".ds-confirm", ".ds-toast"].some((selector) => this.root.querySelector(selector)?.contains(target)) || !!this.searchModal?.contains(target) || !!this.lightbox?.el.contains(target);
   }
   toggleSearch(open, restoreFocus = true) {
     if (!open && this.S.editing) {
@@ -1420,6 +1793,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       return;
     }
     if (!open && this.S.confirm) return;
+    if (open && this.S.sheet) this.setSheet(null);
     if (this.searchModal?.open || open && !this.root.classList.contains("is-narrow")) {
       this.toggleDesktopSearch(open, restoreFocus);
       return;
@@ -1429,7 +1803,6 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     this.searchOutsideTimer = 0;
     const box = this.root.querySelector(".ds-searchbox");
     const entry = this.root.querySelector(".ds-entry");
-    const composer = this.root.querySelector(".ds-composer");
     const dock = this.root.querySelector(".ds-search-dock");
     const from = box.getBoundingClientRect();
     const fromHeight = entry.getBoundingClientRect().height;
@@ -1445,8 +1818,6 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     box.classList.toggle("is-open", open);
     dock.hidden = !open;
     (open ? dock : this.root.querySelector(".ds-search-slot")).appendChild(box);
-    composer.inert = open;
-    if (!open) this.composer?.autosize();
     entry.style.height = "";
     input.disabled = !open;
     this.root.querySelector(".ds-searchclear").disabled = !open;
@@ -1465,11 +1836,11 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const toHeight = entry.getBoundingClientRect().height;
     const win = this.root.ownerDocument.defaultView;
     if (!win.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const options = { duration: 360, easing: "cubic-bezier(.22,.68,.18,1)" };
+      const options = { duration: 300, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
       entry.style.height = `${toHeight}px`;
       const surface = box.animate([
-        { transform: `translate(${from.left - to.left}px,${from.top - to.top}px)`, width: `${from.width}px`, height: `${from.height}px`, borderRadius: open ? "8px" : "12px" },
-        { transform: "translate(0,0)", width: `${to.width}px`, height: `${to.height}px`, borderRadius: open ? "12px" : "8px" }
+        { transform: `translate(${from.left - to.left}px,${from.top - to.top}px)`, width: `${from.width}px`, height: `${from.height}px`, borderRadius: open ? "999px" : "18px" },
+        { transform: "translate(0,0)", width: `${to.width}px`, height: `${to.height}px`, borderRadius: open ? "18px" : "999px" }
       ], options);
       const layout = entry.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], options);
       this.searchAnimations = [surface, layout];
@@ -1704,8 +2075,8 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const date = logicalDate(w, this.settings.dayStartHour);
     const path = this.store.pathFor(date);
     const existing = this.store.texts.get(path) ?? null;
-    const embeds = st.atts.map((a, i) => `![[${this.store.attFolder}/${a.kind === "img" ? "IMG" : "\u5F55\u97F3"}_\u2026${i ? "_" + i : ""}.${a.ext}]]`);
-    const entry = { ...entryTime(w, this.settings.dayStartHour), sub: st.sub, body: [st.body, ...embeds].filter(Boolean).join("\n"), tags: st.tags };
+    const body = resolveInlineImages(st.body, st.atts, (a, i) => `${this.store.attFolder}/${a.kind === "img" ? "IMG" : "\u5F55\u97F3"}_\u2026${i ? "_" + i : ""}.${a.ext}`);
+    const entry = { ...entryTime(w, this.settings.dayStartHour), sub: st.sub, body, tags: st.tags };
     return { path, created: existing == null, text: planAppend(existing, date, entry, this.settings.sourceValue, this.settings.dayStartHour, this.store.ownedFor(path)), mark: sectionLines(entry).join("\n") };
   }
   /* ---------------- 渲染 ---------------- */
@@ -1716,6 +2087,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     this.renderHeat();
     this.renderMonth();
     this.renderStream();
+    this.composer?.renderQuickTags();
   }
   fmtDate(d) {
     const dt = parseYmd(d);
@@ -1726,15 +2098,21 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const set = new Set(days.map((d) => d.date));
     let streak = 0;
     for (let d = parseYmd(days[0]?.date || "1970-01-01"); set.has(ymd(d)); d.setDate(d.getDate() - 1)) streak++;
-    this.root.querySelector(".ds-stats").innerHTML = `<div><b>${days.length}</b><span>\u5929</span></div><div><b>${all.length}</b><span>\u6761</span></div><div><b>${this.tagCounts().length}</b><span>\u6807\u7B7E</span></div><div><b>${streak}</b><span>\u8FDE\u7EED</span></div>`;
+    this.root.querySelector(".ds-stats").innerHTML = `<div class="ds-stats-summary"><span>\u5DF2\u5199\u4E0B <b>${days.length}</b> \u5929 \xB7 <b>${all.length}</b> \u7BC7</span><span>\u8FDE\u7EED <b>${streak}</b> \u5929</span></div>`;
   }
   renderChips() {
     const all = this.allSections(), tc = this.tagCounts();
     const chip = (f) => `<button type="button" class="ds-chip${this.S.filter === f.key ? " is-on" : ""}" data-chip="${f.key}">${esc(f.label)}${f.key ? `<i>${all.filter(f.fn).length}</i>` : ""}</button>`;
     const tchip = ([t, n]) => `<button type="button" class="ds-chip ds-tagchip${this.S.tag === t ? " is-on" : ""}" data-tagchip="${esc(t)}">#${esc(t)}<i>${n}</i></button>`;
-    this.root.querySelector(".ds-filterlist").innerHTML = this.filters().map(chip).join("");
-    this.root.querySelector(".ds-taglist").innerHTML = tc.length ? tc.map(tchip).join("") : '<span class="ds-muted">\u8FD8\u6CA1\u6709\u6807\u7B7E\u3002\u5199\u65E5\u8BB0\u65F6\u70B9 # \u6DFB\u52A0\u3002</span>';
-    this.root.querySelector(".ds-mchips").innerHTML = this.filters().map(chip).join("") + (tc.length ? '<span class="ds-sep"></span>' + tc.map(tchip).join("") : "");
+    const filterHtml = this.filters().map(chip).join("");
+    const tagHtml = tc.length ? tc.map(tchip).join("") : '<span class="ds-muted">\u8FD8\u6CA1\u6709\u6807\u7B7E\u3002\u5199\u65E5\u8BB0\u65F6\u70B9 # \u6DFB\u52A0\u3002</span>';
+    const fl = this.root.querySelector(".ds-filterlist"), tl = this.root.querySelector(".ds-taglist");
+    if (fl) fl.innerHTML = filterHtml;
+    if (tl) tl.innerHTML = tagHtml;
+    const mfl = this.root.querySelector(".ds-mfilterlist"), mtl = this.root.querySelector(".ds-mtaglist");
+    if (mfl) mfl.innerHTML = filterHtml;
+    if (mtl) mtl.innerHTML = tagHtml;
+    this.root.querySelector(".ds-filter-trigger")?.classList.toggle("has-dot", !!(this.S.filter || this.S.tag || this.S.date));
   }
   heatWeeks() {
     const width = this.root.querySelector(".ds-heat").clientWidth;
@@ -1768,8 +2146,11 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const days = this.days();
     if (!this.S.month) this.S.month = (days[0]?.date || ymd(/* @__PURE__ */ new Date())).slice(0, 7);
     const [y, m] = this.S.month.split("-").map(Number), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate();
+    const mt = this.root.querySelector(".ds-month-title"), ms = this.root.querySelector(".ds-month-sub");
+    if (mt) mt.textContent = `${m}\u6708`;
+    if (ms) ms.textContent = String(y);
     const has = new Set(days.map((d) => d.date));
-    let h = `<div class="ds-mhd"><button type="button" class="clickable-icon" data-mnav="-1" data-icon="chevron-left" aria-label="\u4E0A\u4E2A\u6708"></button><b>${y} \u5E74 ${m} \u6708</b><button type="button" class="clickable-icon" data-mnav="1" data-icon="chevron-right" aria-label="\u4E0B\u4E2A\u6708"></button></div><div class="ds-mgrid">`;
+    let h = `<div class="ds-mhd"><button type="button" class="clickable-icon" data-mnav="-1" data-icon="chevron-left"><span class="ds-sr-only">\u4E0A\u4E2A\u6708</span></button><b>${y} \u5E74 ${m} \u6708</b><button type="button" class="clickable-icon" data-mnav="1" data-icon="chevron-right"><span class="ds-sr-only">\u4E0B\u4E2A\u6708</span></button></div><div class="ds-mgrid">`;
     h += "\u65E5\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D".split("").map((w) => `<span class="ds-w">${w}</span>`).join("");
     for (let i = 0; i < first.getDay(); i++) h += "<span></span>";
     for (let d = 1; d <= n; d++) {
@@ -1783,42 +2164,62 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
   /** dayTags：当天只在属性里的标签，放在这一天最下面那张卡片里（不放在卡片外面） */
   card(s, dayTags = []) {
     const key = `${s.path}#${s.idx}`;
-    const long = s.text.length > 160 || s.hasImg && s.text.length > 80 || s.content.split("\n").length > 9;
-    const when = s.time ? `<span class="ds-t">${esc(sectionTimeLabel(s))}</span>${s.late ? '<span class="ds-late" title="\u51CC\u6668\u8BB0\u5F55\uFF0C\u5F52\u5230\u524D\u4E00\u5929">\u51CC\u6668</span>' : ""}${s.sub ? '<span class="ds-bar-sep" aria-hidden="true">|</span>' : ""}` : "";
-    const sub = s.sub ? `<span class="ds-sub">${highlight(`>${esc(s.sub)}<`, this.S.q).slice(1, -1)}</span>` : "";
+    const long = s.text.length > 150 || s.hasImg && s.text.length > 75 || s.content.split("\n").length > 8;
+    const when = s.time ? `<span class="ds-t">${esc(sectionTimeLabel(s))}</span>${s.late ? '<span class="ds-late">\u51CC\u6668</span>' : ""}${s.buji ? '<span class="ds-buji-mark">\xB7 \u8865\u8BB0</span>' : ""}` : "";
+    const subClean = s.buji ? s.sub.replace(/^\u8865\u8BB0\s*[·|｜:\uFF1A-]?\s*/, "") : s.sub;
+    const sub = subClean ? `<h3 class="ds-sub">${highlight(`>${esc(subClean)}<`, this.S.q).slice(1, -1)}</h3>` : "";
     const ctx = { resolve: (l) => this.store.resolve(l, s.path) };
     const extra = s.tags.filter((t) => !s.tagLine.includes(t));
     const own = [...s.tagLine, ...extra];
     const tags = [...own, ...dayTags.filter((t) => !own.includes(t))];
     if (this.S.editing === key) {
-      if (this.searchModal?.open) return `<article class="ds-card is-editing ds-inline-edit" data-key="${esc(key)}"><header class="ds-chead">${when}${sub}</header><div class="ds-tags">${tags.map((tag) => `<span class="ds-tag">#${esc(tag)}</span>`).join("")}</div><div class="ds-edhost"></div></article>`;
+      if (this.searchModal?.open) return `<article class="ds-card is-editing ds-inline-edit" data-key="${esc(key)}"><header class="ds-chead">${when}</header>${sub}<div class="ds-tags">${tags.map((tag) => `<span class="ds-tag">#${esc(tag)}</span>`).join("")}</div><div class="ds-edhost"></div></article>`;
       return `<article class="ds-card is-editing" data-key="${esc(key)}"><div class="ds-edhost"></div></article>`;
     }
+    const rendered = highlight(renderMarkdown(s.content, ctx), this.S.q);
+    const cardImgs = long && !this.searchModal?.open ? extractCardImages(rendered) : [];
+    let stripHtml = "";
+    if (cardImgs.length) {
+      const shown = cardImgs.slice(0, 3);
+      const extraCnt = cardImgs.length - 3;
+      stripHtml = `<div class="ds-collapsed-strip cnt-${shown.length}">${shown.map((img, i) => `<button type="button" class="ds-strip-thumb" data-strip-idx="${i}"><img loading="lazy" decoding="async" alt="" src="${img.url}" data-path="${img.path}">${i === 2 && extraCnt > 0 ? `<span class="ds-strip-more">+${extraCnt}</span>` : ""}</button>`).join("")}</div>`;
+    }
+    const showClamp = long && !this.searchModal?.open;
+    const hasFoot = tags.length || showClamp;
     return `<article class="ds-card${s.buji ? " is-buji" : ""}" data-key="${esc(key)}">
-      <header class="ds-chead">${when}${sub}<span class="ds-badges">${s.hasVoice ? '<span data-icon="mic"></span>' : ""}${s.hasImg ? '<span data-icon="image"></span>' : ""}</span>
-        <button type="button" class="ds-kebab clickable-icon" data-menu="${esc(key)}" aria-label="\u66F4\u591A" data-icon="more-horizontal"></button>
+      <header class="ds-chead">${when}<span class="ds-badges">${s.hasVoice ? '<span data-icon="mic"></span>' : ""}</span>
+        <button type="button" class="ds-kebab clickable-icon" data-menu="${esc(key)}" data-icon="more-horizontal"><span class="ds-sr-only">\u66F4\u591A</span></button>
         ${this.S.menu === key ? `<div class="ds-menu" role="menu"><button type="button" data-editkey="${esc(key)}"><span data-icon="pencil"></span>\u7F16\u8F91</button><button type="button" data-delkey="${esc(key)}" class="mod-warning"><span data-icon="trash-2"></span>\u5220\u9664</button><button type="button" data-openkey="${esc(key)}"><span data-icon="file-text"></span>\u6253\u5F00\u6E90\u6587\u4EF6</button></div>` : ""}
       </header>
-      ${tags.length ? `<div class="ds-tags">${tags.map((t) => `<button type="button" class="ds-tag${own.includes(t) ? "" : " ds-dtag"}${this.S.tag === t ? " is-on" : ""}" data-tag="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
-      <div class="ds-body${long ? " is-clamp" : ""}">${highlight(renderMarkdown(s.content, ctx), this.S.q)}</div>
-      ${long ? '<button type="button" class="ds-more">\u5C55\u5F00\u5168\u6587 \u2193</button>' : ""}
+      ${sub}
+      <div class="ds-body-wrap${showClamp ? " is-clamped" : ""}"${showClamp ? ` style="max-height:${CLAMP_PX}px"` : ""}><div class="ds-body">${rendered}</div></div>
+      ${stripHtml}
+      ${hasFoot ? `<footer class="ds-card-foot"><div class="ds-tags">${tags.map((t) => `<button type="button" class="ds-tag${own.includes(t) ? "" : " ds-dtag"}${this.S.tag === t ? " is-on" : ""}" data-tag="${esc(t)}">#${esc(t)}</button>`).join("")}</div>${showClamp ? '<button type="button" class="ds-more"><span class="ds-more-txt">\u5C55\u5F00</span><span class="ds-more-ic" data-icon="chevron-down"></span></button>' : ""}</footer>` : ""}
     </article>`;
   }
   dayLabel(d) {
     const dt = parseYmd(d);
     return `${dt.getMonth() + 1}\u6708${dt.getDate()}\u65E5<span class="ds-wd"> \xB7 \u661F\u671F${"\u65E5\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D"[dt.getDay()]}</span>`;
   }
+  dayHeadHtml(d, todayLog) {
+    const dt = parseYmd(d.date);
+    const isToday = d.date === todayLog;
+    const dayNum = String(dt.getDate()).padStart(2, "0");
+    const wd = `\u661F\u671F${"\u65E5\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D"[dt.getDay()]}`;
+    return `<div class="ds-day-head"><span class="ds-day-num">${dayNum}</span><div class="ds-day-meta"><span class="ds-day-sub">${dt.getMonth() + 1}\u6708${isToday ? '<span class="ds-today-dot">\u4ECA\u5929</span>' : ""}</span><span class="ds-wd">${wd}</span></div><div class="ds-day-right">${!isToday ? `<button type="button" class="ds-day-buji" data-bujiday="${d.date}">+ \u8865\u8BB0</button>` : ""}<span class="ds-dcount">${d.sections.length} \u7BC7</span></div></div>`;
+  }
   renderStream() {
     const all = this.visibleDays(), days = all.slice(0, this.S.limit), el = this.root.querySelector(".ds-stream");
+    const todayLog = logicalDate(/* @__PURE__ */ new Date(), this.settings.dayStartHour);
     el.querySelectorAll("audio").forEach((a) => a.pause());
     if (this.searchModal?.open) {
       const selected = this.renderDesktopResults(all);
       el.innerHTML = selected ? `<div class="ds-modal-date">${this.dayLabel(selected.date)}</div>${this.card(selected)}` : '<div class="ds-preview-empty">\u9009\u62E9\u4E00\u6761\u65E5\u8BB0\u67E5\u770B\u5168\u6587</div>';
     }
     else if (!this.store.loaded) el.innerHTML = '<div class="ds-empty">\u8BFB\u53D6\u4E2D\u2026</div>';
-    else if (!this.days().length) el.innerHTML = `<div class="ds-empty">\u300C${esc(this.store.folder)}\u300D\u91CC\u8FD8\u6CA1\u6709\u65E5\u8BB0\u3002<br>\u5728\u4E0A\u9762\u5199\u4E0B\u7B2C\u4E00\u6761\u5427\u3002</div>`;
+    else if (!this.days().length) el.innerHTML = `<div class="ds-empty">\u300C${esc(this.store.folder)}\u300D\u91CC\u8FD8\u6CA1\u6709\u65E5\u8BB0\u3002<br>\u70B9\u53F3\u4E0B\u89D2\u6309\u94AE\u5199\u4E0B\u7B2C\u4E00\u6761\u5427\u3002</div>`;
     else if (!all.length) el.innerHTML = '<div class="ds-empty">\u6CA1\u6709\u627E\u5230\u5339\u914D\u7684\u65E5\u8BB0</div>';
-    else el.innerHTML = days.map((d) => `<section class="ds-day" data-date="${d.date}"><div class="ds-day-head"><span class="ds-dfull">${this.dayLabel(d.date)}</span><span class="ds-dcount">${d.sections.length} \u6761</span><span class="ds-dline"></span></div>${d.sections.map((s, i) => this.card(s, i === d.sections.length - 1 ? d.dayTags || [] : [])).join("")}</section>`).join("") + (all.length > days.length ? `<button type="button" class="ds-loadmore" data-act="more">\u52A0\u8F7D\u66F4\u65E9\u7684\u65E5\u8BB0\uFF08\u8FD8\u6709 ${all.length - days.length} \u5929\uFF09</button>` : "");
+    else el.innerHTML = days.map((d) => `<section class="ds-day" data-date="${d.date}">${this.dayHeadHtml(d, todayLog)}${d.sections.map((s, i) => this.card(s, i === d.sections.length - 1 ? d.dayTags || [] : [])).join("")}</section>`).join("") + (all.length > days.length ? `<button type="button" class="ds-loadmore" data-act="more">\u52A0\u8F7D\u66F4\u65E9\u7684\u65E5\u8BB0\uFF08\u8FD8\u6709 ${all.length - days.length} \u5929\uFF09</button>` : "");
     this.icons(el);
     this.wireMedia(el);
     const n = all.reduce((a, d) => a + d.sections.length, 0);
@@ -1837,7 +2238,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     f.hidden = !parts.length;
     this.root.toggleClass("has-filters", !!parts.length);
     this.root.querySelector(".ds-searchclear").hidden = !this.S.q;
-    f.innerHTML = parts.length ? `<span>\u7B5B\u9009\uFF1A${parts.map(esc).join(" \xB7 ")}\uFF08${n} \u6761\uFF09</span><button type="button" data-act="clear">\u6E05\u9664</button>` : "";
+    f.innerHTML = parts.length ? `<div class="ds-filter-pills">${parts.map((p) => `<span class="ds-active-pill">${esc(p)}</span>`).join("")}</div><span class="ds-active-count">${n} \u7BC7</span><button type="button" data-act="clear">\u6E05\u9664</button>` : "";
     this.editComposer?.destroy();
     this.editComposer = null;
     const host = el.querySelector(".ds-edhost");
@@ -1852,7 +2253,16 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
           if (!this.searchModal?.open) return;
           const card = host.closest(".ds-inline-edit");
           if (!card) return;
-          card.querySelector(".ds-chead").innerHTML = `${s.time ? `<span class="ds-t">${esc(sectionTimeLabel(s))}</span>` : ""}${s.time && state.sub ? '<span class="ds-bar-sep" aria-hidden="true">|</span>' : ""}${state.sub ? `<span class="ds-sub">${esc(state.sub)}</span>` : ""}`;
+          card.querySelector(".ds-chead").innerHTML = `${s.time ? `<span class="ds-t">${esc(sectionTimeLabel(s))}</span>` : ""}`;
+          let subEl = card.querySelector("h3.ds-sub");
+          if (state.sub) {
+            if (!subEl) {
+              subEl = card.ownerDocument.createElement("h3");
+              subEl.className = "ds-sub";
+              card.querySelector(".ds-chead").after(subEl);
+            }
+            subEl.textContent = state.sub;
+          } else subEl?.remove();
           const tags = dedupe([...state.tags, ...scanTags(state.body)]);
           const list = card.querySelector(".ds-tags");
           list.innerHTML = tags.map((tag) => `<span class="ds-tag">#${esc(tag)}</span>`).join("");
@@ -1864,9 +2274,9 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
           const text = this.store.texts.get(s.path);
           if (text == null) return null;
           try {
-            const out = planEdit(text, refOf(s), { sub: st.sub, body: st.body, tags: st.tags }, this.settings.dayStartHour, this.store.ownedFor(s.path));
-            const re = this.store.days.get(s.path);
-            return { path: s.path, created: false, text: out, mark: sectionLines({ time: s.time, timeDate: s.timeDate, sub: st.sub || (s.time ? "" : s.sub), body: st.body, tags: st.tags }, !s.hdr).join("\n") };
+            const body = resolveInlineImages(st.body, st.atts, (a, i) => `${this.store.attFolder}/${a.kind === "img" ? "IMG" : "\u5F55\u97F3"}_\u2026${i ? "_" + i : ""}.${a.ext}`);
+            const out = planEdit(text, refOf(s), { sub: st.sub, body, tags: st.tags }, this.settings.dayStartHour, this.store.ownedFor(s.path));
+            return { path: s.path, created: false, text: out, mark: sectionLines({ time: s.time, timeDate: s.timeDate, sub: st.sub || (s.time ? "" : s.sub), body, tags: st.tags }, !s.hdr).join("\n") };
           } catch {
             return null;
           }
@@ -1995,12 +2405,27 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       void this.app.workspace.openLinkText(a.dataset.href, s?.path || "", true);
       return;
     }
+    const stripThumb = target.closest(".ds-strip-thumb");
+    if (stripThumb) {
+      const card = stripThumb.closest(".ds-card");
+      const imgs = card ? [...card.querySelectorAll(".ds-body .ds-img img")] : [];
+      if (imgs.length) {
+        const items = imgs.map((x) => ({ url: x.src, path: x.dataset.path || "" }));
+        this.lightbox?.open(items, Math.max(0, Number(stripThumb.dataset.stripIdx) || 0));
+      }
+      return;
+    }
     const img = target.closest(".ds-img img");
     if (img) {
       const scope = img.closest(".ds-card") || img.closest(".ds-body") || this.root;
       const imgs = [...scope.querySelectorAll(".ds-img img")];
       const items = imgs.map((x) => ({ url: x.src, path: x.dataset.path || "" }));
       this.lightbox?.open(items, Math.max(0, imgs.indexOf(img)));
+      return;
+    }
+    const backdrop = target.closest(".ds-backdrop");
+    if (backdrop) {
+      this.setSheet(null);
       return;
     }
     const t = target.closest("button");
@@ -2010,6 +2435,23 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     }
     if (!t) return;
     const act = t.dataset.act;
+    if (act === "openwrite") {
+      this.setSheet("write", t);
+      return;
+    }
+    if (act === "closesheet") {
+      this.setSheet(null);
+      return;
+    }
+    if (act === "togglefilter") {
+      this.setSheet(this.S.sheet === "filter" ? null : "filter");
+      return;
+    }
+    if (t.dataset.bujiday) {
+      this.composer?.setBackdate(t.dataset.bujiday);
+      this.setSheet("write", t);
+      return;
+    }
     if (t.dataset.resultkey) {
       this.searchSelected = t.dataset.resultkey;
       this.S.menu = null;
@@ -2021,9 +2463,47 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       return;
     }
     if (t.classList.contains("ds-more")) {
-      const b = t.previousElementSibling;
-      const open = b.classList.toggle("is-open");
-      t.textContent = open ? "\u6536\u8D77 \u2191" : "\u5C55\u5F00\u5168\u6587 \u2193";
+      const card = t.closest(".ds-card");
+      const wrap = card?.querySelector(".ds-body-wrap");
+      const strip = card?.querySelector(".ds-collapsed-strip");
+      if (!wrap) return;
+      const reduced = this.root.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const willOpen = wrap.classList.contains("is-clamped");
+      const lbl = t.querySelector(".ds-more-txt");
+      if (willOpen) {
+        const startH = wrap.getBoundingClientRect().height;
+        if (!reduced) wrap.style.maxHeight = `${startH}px`;
+        wrap.classList.remove("is-clamped");
+        wrap.classList.add("is-expanded");
+        if (strip) strip.hidden = true;
+        if (reduced) {
+          wrap.style.maxHeight = "none";
+        } else {
+          const endH = wrap.scrollHeight;
+          window.requestAnimationFrame(() => {
+            wrap.style.maxHeight = `${endH}px`;
+          });
+          const onEnd = (ev) => {
+            if (ev.propertyName !== "max-height") return;
+            wrap.style.maxHeight = "none";
+            wrap.removeEventListener("transitionend", onEnd);
+          };
+          wrap.addEventListener("transitionend", onEnd);
+        }
+        t.classList.add("is-open");
+        if (lbl) lbl.textContent = "\u6536\u8D77";
+      } else {
+        if (!reduced) {
+          wrap.style.maxHeight = `${wrap.getBoundingClientRect().height}px`;
+          void wrap.offsetHeight;
+        }
+        wrap.classList.remove("is-expanded");
+        wrap.classList.add("is-clamped");
+        wrap.style.maxHeight = `${CLAMP_PX}px`;
+        if (strip) strip.hidden = false;
+        t.classList.remove("is-open");
+        if (lbl) lbl.textContent = "\u5C55\u5F00";
+      }
       return;
     }
     if (t.dataset.menu) {
@@ -2101,8 +2581,12 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       return;
     }
     if (act === "togglecal") {
-      this.S.showCal = !this.S.showCal;
-      this.root.toggleClass("show-cal", this.S.showCal);
+      if (this.root.classList.contains("is-narrow")) {
+        this.setSheet(this.S.sheet === "cal" ? null : "cal");
+      } else {
+        this.S.showCal = !this.S.showCal;
+        this.root.toggleClass("show-cal", this.S.showCal);
+      }
       return;
     }
     if (act === "togglesearch") {
@@ -2121,6 +2605,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     if (t.dataset.chip !== void 0) {
       this.S.filter = t.dataset.chip;
       this.S.limit = 30;
+      if (this.S.sheet === "filter") this.setSheet(null);
       this.renderAll();
       this.toTop();
       return;
@@ -2129,6 +2614,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       const v = t.dataset.tagchip ?? t.dataset.tag;
       this.S.tag = this.S.tag === v ? null : v;
       this.S.limit = 30;
+      if (this.S.sheet === "filter") this.setSheet(null);
       this.renderAll();
       this.toTop();
       return;
@@ -2136,6 +2622,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     if (t.dataset.date) {
       this.S.date = this.S.date === t.dataset.date ? null : t.dataset.date;
       this.S.limit = 30;
+      if (this.S.sheet === "cal") this.setSheet(null);
       this.renderAll();
       this.toTop();
       return;
@@ -2304,10 +2791,10 @@ var DiaryStore = class {
     }
   }
   async withAttachments(input, atts, when) {
-    if (!atts.length) return input;
+    if (!atts.length) return { ...input, body: (input.body || "").replace(INLINE_IMG_RE, "") };
     const paths = [];
     for (let i = 0; i < atts.length; i++) paths.push(await this.saveAttachment(atts[i], when, i));
-    const body = [input.body.replace(/\s+$/, ""), ...paths.map((p) => `![[${p}]]`)].filter(Boolean).join("\n");
+    const body = resolveInlineImages(input.body, atts, (_a, i) => paths[i]);
     return { ...input, body };
   }
   /** 新写一条：按「凌晨 N 点前算前一天」找到文件；不存在就新建 */
@@ -2416,7 +2903,8 @@ var DEFAULT_SETTINGS = {
   dayStartHour: 4,
   autoOpen: true,
   newestFirst: true,
-  sourceValue: "memos"
+  sourceValue: "memos",
+  palette: "auto"
 };
 
 // src/main.ts
@@ -2499,6 +2987,14 @@ var DiarySettingTab = class extends import_obsidian5.PluginSettingTab {
       await this.plugin.saveAll();
       if (reload) await this.plugin.store.loadAll();
     };
+    new import_obsidian5.Setting(containerEl).setName("\u5916\u89C2\u8272\u8C03").setDesc("\u9009\u62E9\u65E5\u8BB0\u6D41\u7684\u67D4\u96FE\u8F6F\u5361\u8272\u8C03\u65B9\u6848\uFF0C\u6D45\u8272\u548C\u6DF1\u8272\u6A21\u5F0F\u5747\u5373\u65F6\u751F\u6548\u3002").addDropdown((d) => {
+      for (const [key, label] of PALETTES) d.addOption(key, label);
+      d.setValue(s.palette || "auto").onChange(async (v) => {
+        s.palette = v;
+        await save();
+        this.plugin.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((l) => l.view.applyPalette?.());
+      });
+    });
     new import_obsidian5.Setting(containerEl).setName("\u65E5\u8BB0\u6587\u4EF6\u5939").setDesc("\u53EA\u8BFB\u5199\u8FD9\u4E2A\u6587\u4EF6\u5939\u6839\u76EE\u5F55\u4E0B\u7684 YYYY-MM-DD.md\uFF1B\u5B50\u6587\u4EF6\u5939\uFF08\u5982 \u5176\u4ED6\u8BB0\u5F55/\uFF09\u4E0D\u8BFB\u3002").addText((t) => t.setPlaceholder("\u65E5\u8BB0").setValue(s.diaryFolder).onChange(async (v) => {
       s.diaryFolder = v.trim() || "\u65E5\u8BB0";
       await save(true);
