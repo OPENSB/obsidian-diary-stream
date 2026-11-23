@@ -57,6 +57,6 @@ git diff --check
   3. **光标处图文穿插 + 折叠态底部缩略图带**：写作时在光标位置插入行内图片块（无原始 Markdown 语法干扰，保存时经 `resolveInlineImages` 原位写入 `![[...]]`）；长日记未展开时隐藏正文内原位图并在正文下方展示紧凑缩略图带（点击可开灯箱），点击右下角紧凑「展开 ⌄」后平滑舒展高度并将图片还原回文字原位。
   4. **补记双入口**：写作稿纸顶部时间胶囊可展开快捷补记面板（现在 / 昨天 / 前天 / 自定义时间 + 标记为补记开关），历史日期章节头亦提供 `+ 补记` 直达入口。
   5. **设置页新增 6 套外观色调**：`palette` 支持 `auto`（跟随 Obsidian 主题色）/ `mono` / `blue` / `green` / `violet` / `coral`，深浅模式即时生效。
-- **验证与状态**：`npm run check`、`npm test`（23/23，新增 `tests/redesign.cjs` 6 项）和 `git diff --check` 全部通过；未发布新版 Release（线上 BRAT 仍为 `0.1.5`），尚未在 Obsidian 实机或手机真机验收。
+- **验证与状态**：`npm run check`、`npm test`（23/23，新增 `tests/redesign.cjs` 6 项）和 `git diff --check` 全部通过；已同步版本至 `0.2.0` 供 BRAT 拉取（保留旧 0.1.4 / 0.1.5 标签与资产），尚未在 Obsidian 实机或手机真机验收。
 
 最后提交：e7e1e2c8f5f9762a137be2414c80cfe1d9849f2c
