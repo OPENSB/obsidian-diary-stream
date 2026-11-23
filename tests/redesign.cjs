@@ -148,8 +148,9 @@ test('CSS avoids zero-specificity button reset, wrap transform trap, clip-path m
   assert.ok(!css.includes('clip-path: inset(var(--ox-t)'), 'must not use clip-path morph on write sheet');
   assert.match(css, /\.is-mobile\s+\.ds-leaf\s+\.ds-totop[\s\S]*display:\s*none\s*!important/);
   assert.match(css, /\.ds-scope\.ds-root\s+\.ds-menu\s+button/);
-  assert.match(css, /body\s+\.modal-container\.ds-sheet-modal-wrap\s+\.modal-close-button[\s\S]*display:\s*none\s*!important/);
+  assert.match(css, /body\s+\.modal-container\.ds-sheet-modal-wrap\s+\.modal-close-button/);
   assert.match(css, /\.modal-container\.ds-sheet-modal-wrap\.is-write-modal[\s\S]*align-items:\s*flex-start/);
+  assert.match(css, /\.is-mobile\s+\.modal-container\.ds-sheet-modal-wrap\.is-write-modal[\s\S]*inset:\s*0\s*!important/);
   assert.match(css, /\.ds-root:not\(\.is-search-open\)\s+\.ds-entry\s*\{\s*display:\s*none/);
 });
 

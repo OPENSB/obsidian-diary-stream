@@ -600,7 +600,7 @@ var Composer = class {
     __publicField(this, "onDocClick", (e) => {
       const target = this.box.contains(e.target) ? e.target : null;
       const keep = target?.closest('.ds-fld-sub,[data-a="sub"]') ? "sub"
-        : target?.closest('.ds-fld-tags,.ds-tagpop,[data-a="tags"]') ? "tags"
+        : target?.closest('.ds-fld-tags,.ds-tagpop,.ds-qtags,[data-a="tags"]') ? "tags"
         : target?.closest('.ds-timepop,[data-a="time"]') ? "time"
         : target?.closest('.ds-preview,[data-a="pv"]') ? "pv" : null;
       this.dismissTools(keep);
@@ -630,7 +630,7 @@ var Composer = class {
   build(init) {
     const isNew = this.mode === "new";
     this.el.innerHTML = `<div class="ds-cbox${isNew ? "" : " is-open is-edit"}${this.inline ? " ds-inline-editor" : ""}">
-      ${isNew ? `<div class="ds-sheet-write-head"><button type="button" class="ds-meta" data-a="time"></button><div class="ds-write-head-right"><button type="button" class="ds-send" data-a="send" disabled>\u4FDD\u5B58</button><button type="button" class="ds-sheet-close" data-a="close"><span data-icon="x"></span><span class="ds-sr-only">\u5173\u95ED</span></button></div></div>` : this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
+      ${isNew ? `<div class="ds-sheet-write-head"><button type="button" class="ds-write-back" data-a="close"><span data-icon="arrow-left"></span><span class="ds-sr-only">\u8FD4\u56DE</span></button><button type="button" class="ds-meta" data-a="time"></button><span class="ds-sp"></span><button type="button" class="ds-send" data-a="send" disabled>\u4FDD\u5B58</button></div>` : this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
       ${isNew ? `<div class="ds-pop ds-timepop" hidden><div class="ds-time-presets"><button type="button" class="ds-tp-chip" data-a="now">\u73B0\u5728</button><button type="button" class="ds-tp-chip" data-a="preset-yest">\u8865\u8BB0\u6628\u5929</button><button type="button" class="ds-tp-chip" data-a="preset-prev2">\u8865\u8BB0\u524D\u5929</button></div><div class="ds-time-row"><label class="ds-sr-only" for="ds-when-inp">\u5199\u5165\u65F6\u95F4</label><input id="ds-when-inp" type="datetime-local" class="ds-when"><button type="button" class="ds-buji-toggle" data-a="togglebuji">\u6807\u8BB0\u4E3A\u8865\u8BB0</button></div><div class="ds-row"><span class="ds-hint"></span></div></div>` : ""}
       <div class="ds-blocks"></div>
       ${this.inline ? '<div class="ds-edit-controls">' : ""}
@@ -768,6 +768,11 @@ var Composer = class {
   renderQuickTags() {
     const qel = this.q(".ds-qtags");
     if (!qel || this.mode !== "new") return;
+    if (!this.tagsOpen) {
+      qel.innerHTML = "";
+      qel.hidden = true;
+      return;
+    }
     const top = this.host.tagCounts().slice(0, 8).map(([t]) => t);
     const merged = dedupe([...this.tags, ...top]);
     if (!merged.length) {
@@ -785,7 +790,7 @@ var Composer = class {
       this.subOpen = false;
       fieldsChanged = dismissed = true;
     }
-    if (this.inline && this.tagsOpen && keep !== "tags") {
+    if ((this.inline || this.mode === "new") && this.tagsOpen && keep !== "tags") {
       const tag = normTag(pendingTag);
       if (okTag(tag) && !this.tags.includes(tag)) this.tags.push(tag);
       this.tagsOpen = false;
@@ -801,6 +806,7 @@ var Composer = class {
     if (keep !== "pv") this.q('[data-a="pv"]')?.classList.remove("is-active");
     if (fieldsChanged) {
       this.renderFields();
+      this.renderQuickTags();
       if (keep === "tags" && this.q(".ds-taginput")) this.q(".ds-taginput").value = pendingTag;
       this.update();
     }
@@ -923,13 +929,14 @@ var Composer = class {
         }
       }
       if (a === "tags") {
-        if (this.inline && this.tagsOpen) {
+        if ((this.inline || this.mode === "new") && this.tagsOpen) {
           this.dismissTools();
           this.ta?.focus({ preventScroll: true });
         } else {
           this.dismissTools("tags");
           this.tagsOpen = true;
           this.renderFields();
+          this.renderQuickTags();
           this.q(".ds-taginput")?.focus();
           this.tagAC();
         }
@@ -1062,6 +1069,7 @@ var Composer = class {
     let h = "";
     if (this.subOpen || this.sub && !this.inline) h += `<span class="ds-fld ds-fld-sub"><span class="ds-lbl" data-icon="heading"></span><input class="ds-subinput" placeholder="\u526F\u6807\u9898" value="${esc(this.sub)}"><button type="button" class="ds-x" data-a="closefield" data-f="sub"><span data-icon="x"></span><span class="ds-sr-only">\u53BB\u6389\u526F\u6807\u9898</span></button></span>`;
     if (this.tagsOpen || this.tags.length && !this.inline && this.mode === "edit") h += `<span class="ds-fld ds-fld-tags"><span class="ds-lbl" data-icon="hash"></span>${this.tags.map((t) => `<span class="ds-tchip">#${esc(t)}<button type="button" data-a="rmtag" data-t="${esc(t)}"><span data-icon="x"></span><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("")}<input class="ds-taginput" placeholder="${this.tags.length ? "" : "\u8F93\u5165\u65B0\u6807\u7B7E"}" autocomplete="off" enterkeyhint="done"></span><div class="ds-pop ds-tagpop" hidden></div>`;
+    else if (this.mode === "new" && this.tags.length) h += `<div class="ds-picked-tags">${this.tags.map((t) => `<span class="ds-tchip">#${esc(t)}<button type="button" data-a="rmtag" data-t="${esc(t)}"><span data-icon="x"></span><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("")}</div>`;
     f.innerHTML = h;
     f.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
     this.q("[data-a=sub]")?.classList.toggle("is-active", !!(this.subOpen || this.sub && !this.inline));
@@ -1074,6 +1082,10 @@ var Composer = class {
     const inp = this.q(".ds-taginput"), pop = this.q(".ds-tagpop");
     if (!inp || !pop) return;
     const q = normTag(inp.value).toLowerCase();
+    if (this.mode === "new" && !q) {
+      pop.hidden = true;
+      return;
+    }
     const all = this.host.tagCounts();
     const items = all.filter(([t]) => !this.tags.includes(t) && (!q || t.toLowerCase().includes(q))).slice(0, 6);
     let h = `<div class="ds-ph">${q ? "\u6807\u7B7E" : "\u5E38\u7528\u6807\u7B7E"}</div>` + items.map(([t, n], i) => `<button type="button" class="${i === 0 ? "is-on" : ""}" data-a="pick" data-t="${esc(t)}">#${esc(t)}<i>${n}</i></button>`).join("");
@@ -1514,10 +1526,25 @@ var DiarySheetModal = BaseModal ? class extends BaseModal {
     containerEl.classList.add("ds-pal-" + pal);
     modalEl.classList.add("ds-sheet-modal");
     contentEl.classList.add("ds-sheet-modal-content");
-    containerEl.querySelectorAll?.(".modal-close-button")?.forEach((btn) => {
-      btn.hidden = true;
-      btn.style?.setProperty?.("display", "none", "important");
-    });
+    const hideNativeChrome = () => {
+      for (const ch of Array.from(modalEl.children || [])) {
+        if (ch !== contentEl) {
+          ch.hidden = true;
+          ch.style?.setProperty?.("display", "none", "important");
+        }
+      }
+      for (const ch of Array.from(containerEl.children || [])) {
+        if (ch !== modalEl && !ch.classList?.contains("modal-bg")) {
+          ch.hidden = true;
+          ch.style?.setProperty?.("display", "none", "important");
+        }
+      }
+      containerEl.querySelectorAll?.(".modal-close-button")?.forEach((btn) => {
+        btn.hidden = true;
+        btn.style?.setProperty?.("display", "none", "important");
+      });
+    };
+    hideNativeChrome();
     this.view.syncViewport?.(containerEl);
     if (this.sheetEl && this.sheetEl.parentNode) {
       this.placeholder = this.sheetEl.ownerDocument.createComment("ds-sheet-placeholder");
@@ -1532,6 +1559,7 @@ var DiarySheetModal = BaseModal ? class extends BaseModal {
     });
     const win = containerEl.ownerDocument.defaultView;
     win.requestAnimationFrame(() => {
+      hideNativeChrome();
       this.sheetEl?.classList.add("is-open");
       this.opts.onShown?.();
     });

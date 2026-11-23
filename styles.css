@@ -821,8 +821,12 @@ body .ds-scope.ds-root button:focus-visible {
   justify-content: flex-end;
   pointer-events: none;
 }
-body .modal-container.ds-sheet-modal-wrap .modal-close-button {
+body .modal-container.ds-sheet-modal-wrap .modal-close-button,
+body .modal-container.ds-sheet-modal-wrap .modal > :not(.ds-sheet-modal-content),
+body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 .modal-container.ds-sheet-modal-wrap .ds-sheet-modal-content {
   width: 100%;
@@ -915,10 +919,10 @@ body .modal-container.ds-sheet-modal-wrap .modal-close-button {
   transition: none !important;
 }
 
-/* 写作弹窗：顶部悬停卡片（无论安卓输入法是否上报键盘高度，输入框/标签/工具栏永远完整露在键盘上方） */
+/* 写作页：手机端整页沉浸式覆盖（零灰缝、零遮挡）；桌面端居中卡片 */
 .modal-container.ds-sheet-modal-wrap.is-write-modal {
   align-items: flex-start;
-  padding: calc(max(env(safe-area-inset-top, 0px), 28px) + 12px) 12px 12px;
+  padding: min(10vh, 72px) 16px 24px;
 }
 .modal-container.ds-sheet-modal-wrap.is-write-modal .modal.ds-sheet-modal,
 .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-modal-content {
@@ -926,30 +930,81 @@ body .modal-container.ds-sheet-modal-wrap .modal-close-button {
 }
 .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet {
   border-radius: 22px;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);
   padding-bottom: 0;
   height: auto;
-  max-height: min(52dvh, 410px, calc(var(--ds-vvh, 100dvh) - max(env(safe-area-inset-top, 0px), 28px) - 24px));
-  transform: translateY(-10px) scale(0.975);
+  max-height: min(76vh, 620px);
+  transform: translateY(14px);
   opacity: 0;
   transition: transform 220ms var(--ds-ease-ios), opacity 180ms ease;
 }
 .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet.is-open {
-  transform: translateY(0) scale(1);
+  transform: none;
   opacity: 1;
 }
 .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-handle {
   display: none;
 }
-.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-write-head {
-  padding-top: 12px;
+
+/* 手机端 / 窄屏：整页沉浸式写日记页，纯暖白画布铺满全屏，彻底消除弹窗割裂与键盘遮挡 */
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  background: var(--ds-card) !important;
 }
-body:not(.is-mobile) .modal-container.ds-sheet-modal-wrap.is-write-modal {
-  padding-top: min(10vh, 72px);
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .modal-bg,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .modal-bg {
+  display: none !important;
 }
-body:not(.is-mobile) .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet {
-  max-height: min(76vh, 620px);
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .modal.ds-sheet-modal,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .modal.ds-sheet-modal,
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-modal-content,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-sheet-modal-content {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: var(--ds-card) !important;
+  box-shadow: none !important;
+  justify-content: flex-start !important;
 }
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-write-sheet {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--ds-card);
+  padding-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px), 32px);
+  padding-bottom: 0;
+}
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-blocks,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-blocks {
+  flex: 0 1 auto;
+  min-height: 220px;
+  max-height: calc(50dvh - 110px);
+  padding: 18px 20px 14px;
+}
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal textarea.ds-body.is-solo,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal textarea.ds-body.is-solo {
+  min-height: 200px;
+}
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-bar,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-bar {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--ds-line);
+  border-bottom: 1px solid var(--ds-line);
+}
+
 /* 非宿主预览兜底态 */
 .ds-root:not(.ds-sheet-modal-wrap) .ds-write-sheet {
   height: min(62dvh, 480px, calc(var(--ds-vvh, 100dvh) - max(env(safe-area-inset-top, 0px), 24px) - 24px));
@@ -1000,16 +1055,30 @@ body:not(.is-mobile) .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-wri
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 18px 12px;
+  gap: 8px;
+  padding: 10px 16px 10px 10px;
   border-bottom: 1px solid var(--ds-line);
   touch-action: none;
 }
-.ds-write-head-right {
+.ds-scope.ds-root .ds-write-back {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--ds-ink);
+  flex: none;
+  transition: background 140ms, transform 120ms;
+}
+.ds-scope.ds-root .ds-write-back:hover { background: var(--ds-soft); }
+.ds-scope.ds-root .ds-write-back:active { transform: scale(0.9); }
+.ds-write-back svg.svg-icon { width: 19px; height: 19px; }
+.ds-picked-tags {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .ds-ed-head { font-size: 12px; color: var(--ds-faint); margin-bottom: 8px; }
 
