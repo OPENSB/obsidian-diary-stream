@@ -630,7 +630,7 @@ var Composer = class {
   build(init) {
     const isNew = this.mode === "new";
     this.el.innerHTML = `<div class="ds-cbox${isNew ? "" : " is-open is-edit"}${this.inline ? " ds-inline-editor" : ""}">
-      ${isNew ? `<div class="ds-sheet-write-head"><button type="button" class="ds-meta" data-a="time"></button><button type="button" class="ds-send mod-cta" data-a="send" disabled>\u4FDD\u5B58</button></div>` : this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
+      ${isNew ? `<div class="ds-sheet-write-head"><button type="button" class="ds-meta" data-a="time"></button><button type="button" class="ds-send" data-a="send" disabled>\u4FDD\u5B58</button></div>` : this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
       ${isNew ? `<div class="ds-pop ds-timepop" hidden><div class="ds-time-presets"><button type="button" class="ds-tp-chip" data-a="now">\u73B0\u5728</button><button type="button" class="ds-tp-chip" data-a="preset-yest">\u8865\u8BB0\u6628\u5929</button><button type="button" class="ds-tp-chip" data-a="preset-prev2">\u8865\u8BB0\u524D\u5929</button></div><div class="ds-time-row"><label class="ds-sr-only" for="ds-when-inp">\u5199\u5165\u65F6\u95F4</label><input id="ds-when-inp" type="datetime-local" class="ds-when"><button type="button" class="ds-buji-toggle" data-a="togglebuji">\u6807\u8BB0\u4E3A\u8865\u8BB0</button></div><div class="ds-row"><span class="ds-hint"></span></div></div>` : ""}
       <div class="ds-blocks"></div>
       ${this.inline ? '<div class="ds-edit-controls">' : ""}
@@ -641,7 +641,7 @@ var Composer = class {
         ${init && !init.hasHeader ? "" : this.ib("sub", "heading", "\u526F\u6807\u9898", isNew ? "\u6807\u9898" : "")}${this.ib("tags", "hash", "\u6807\u7B7E", isNew ? "\u6807\u7B7E" : "")}${this.ib("img", "image", "\u63D2\u5165\u56FE\u7247", isNew ? "\u63D2\u56FE" : "")}${this.ib("rec", "mic", "\u5F55\u97F3")}
         <span class="ds-sp"></span>
         ${this.ib("pv", "file-text", "\u9884\u89C8\u5C06\u5199\u5165\u7684\u5185\u5BB9")}
-        ${isNew ? "" : '<button type="button" class="ds-ghost" data-a="cancel">\u53D6\u6D88</button><button type="button" class="ds-send mod-cta" data-a="send" disabled>\u4FDD\u5B58</button>'}
+        ${isNew ? "" : '<button type="button" class="ds-ghost" data-a="cancel">\u53D6\u6D88</button><button type="button" class="ds-send" data-a="send" disabled>\u4FDD\u5B58</button>'}
       </div>
       <div class="ds-preview" hidden></div>
       ${this.inline ? "</div>" : ""}
@@ -680,7 +680,7 @@ var Composer = class {
       }
       const att = this.atts.find((a) => a.id === b.attId);
       if (!att) return "";
-      return `<div class="ds-inline-att" data-img-block="${esc(b.id)}"><img alt="" src="${esc(att.url)}"><button type="button" class="ds-ax" data-a="rmimgblock" data-bid="${esc(b.id)}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664\u56FE\u7247</span></button></div>`;
+      return `<div class="ds-inline-att" data-img-block="${esc(b.id)}"><img alt="" src="${esc(att.url)}"><button type="button" class="ds-ax" data-a="rmimgblock" data-bid="${esc(b.id)}"><span data-icon="x"></span><span class="ds-sr-only">\u79FB\u9664\u56FE\u7247</span></button></div>`;
     }).join("");
     wrap.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
     const tas = [...wrap.querySelectorAll("textarea.ds-body")];
@@ -1059,8 +1059,8 @@ var Composer = class {
   renderFields(keepFocus = false) {
     const f = this.q(".ds-fields");
     let h = "";
-    if (this.subOpen || this.sub && !this.inline) h += `<span class="ds-fld ds-fld-sub"><span class="ds-lbl" data-icon="heading"></span><input class="ds-subinput" placeholder="\u526F\u6807\u9898" value="${esc(this.sub)}"><button type="button" class="ds-x" data-a="closefield" data-f="sub" data-icon="x"><span class="ds-sr-only">\u53BB\u6389\u526F\u6807\u9898</span></button></span>`;
-    if (this.tagsOpen || this.tags.length && !this.inline && this.mode === "edit") h += `<span class="ds-fld ds-fld-tags"><span class="ds-lbl" data-icon="hash"></span>${this.tags.map((t) => `<span class="ds-tchip">#${esc(t)}<button type="button" data-a="rmtag" data-t="${esc(t)}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("")}<input class="ds-taginput" placeholder="${this.tags.length ? "" : "\u8F93\u5165\u65B0\u6807\u7B7E"}" autocomplete="off" enterkeyhint="done"></span><div class="ds-pop ds-tagpop" hidden></div>`;
+    if (this.subOpen || this.sub && !this.inline) h += `<span class="ds-fld ds-fld-sub"><span class="ds-lbl" data-icon="heading"></span><input class="ds-subinput" placeholder="\u526F\u6807\u9898" value="${esc(this.sub)}"><button type="button" class="ds-x" data-a="closefield" data-f="sub"><span data-icon="x"></span><span class="ds-sr-only">\u53BB\u6389\u526F\u6807\u9898</span></button></span>`;
+    if (this.tagsOpen || this.tags.length && !this.inline && this.mode === "edit") h += `<span class="ds-fld ds-fld-tags"><span class="ds-lbl" data-icon="hash"></span>${this.tags.map((t) => `<span class="ds-tchip">#${esc(t)}<button type="button" data-a="rmtag" data-t="${esc(t)}"><span data-icon="x"></span><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("")}<input class="ds-taginput" placeholder="${this.tags.length ? "" : "\u8F93\u5165\u65B0\u6807\u7B7E"}" autocomplete="off" enterkeyhint="done"></span><div class="ds-pop ds-tagpop" hidden></div>`;
     f.innerHTML = h;
     f.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
     this.q("[data-a=sub]")?.classList.toggle("is-active", !!(this.subOpen || this.sub && !this.inline));
@@ -1099,17 +1099,18 @@ var Composer = class {
   renderAtts() {
     const el = this.q(".ds-att");
     const nonInline = this.atts.map((a, i) => ({ a, i })).filter(({ a }) => !a.inline);
-    el.innerHTML = nonInline.map(({ a, i }) => a.kind === "img" ? `<span class="ds-a ds-a-img"><img alt="" src="${a.url}"><button type="button" class="ds-ax" data-a="rmatt" data-i="${i}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664</span></button></span>` : `<span class="ds-a ds-a-voice"><audio src="${a.url}" preload="metadata"></audio><button type="button" class="ds-aplay" data-icon="play"><span class="ds-sr-only">\u8BD5\u542C</span></button>\u8BED\u97F3 ${fmtDur(a.dur || 0)}<button type="button" class="ds-ax" data-a="rmatt" data-i="${i}" data-icon="x"><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("");
+    el.innerHTML = nonInline.map(({ a, i }) => a.kind === "img" ? `<span class="ds-a ds-a-img"><img alt="" src="${a.url}"><button type="button" class="ds-ax" data-a="rmatt" data-i="${i}"><span data-icon="x"></span><span class="ds-sr-only">\u79FB\u9664</span></button></span>` : `<span class="ds-a ds-a-voice"><audio src="${a.url}" preload="metadata"></audio><button type="button" class="ds-aplay"><span data-icon="play"></span><span class="ds-sr-only">\u8BD5\u542C</span></button>\u8BED\u97F3 ${fmtDur(a.dur || 0)}<button type="button" class="ds-ax" data-a="rmatt" data-i="${i}"><span data-icon="x"></span><span class="ds-sr-only">\u79FB\u9664</span></button></span>`).join("");
     el.querySelectorAll("[data-icon]").forEach((b) => icon(b, b.dataset.icon));
     el.querySelectorAll(".ds-aplay").forEach((btn) => btn.addEventListener("click", () => {
       const au = btn.parentElement.querySelector("audio");
+      const ic = btn.querySelector("[data-icon]") || btn;
       if (au.paused) {
         void au.play();
-        icon(btn, "pause");
-        au.onended = () => icon(btn, "play");
+        icon(ic, "pause");
+        au.onended = () => icon(ic, "play");
       } else {
         au.pause();
-        icon(btn, "play");
+        icon(ic, "play");
       }
     }));
   }
@@ -1295,8 +1296,9 @@ var Composer = class {
 // src/lightbox.ts
 var import_obsidian2 = require("obsidian");
 var Lightbox = class {
-  constructor(parent, openOriginal) {
+  constructor(parent, openOriginal, onToggle = null) {
     this.openOriginal = openOriginal;
+    this.onToggle = onToggle;
     __publicField(this, "el");
     __publicField(this, "img");
     __publicField(this, "items", []);
@@ -1385,11 +1387,13 @@ var Lightbox = class {
     this.el.hidden = false;
     this.el.classList.toggle("is-single", items.length === 1);
     this.show();
+    this.onToggle?.(true);
   }
   close() {
     this.el.hidden = true;
     this.img.removeAttribute("src");
     this.zoom(1);
+    this.onToggle?.(false);
   }
   go(d) {
     if (this.items.length < 2) return;
@@ -1482,6 +1486,66 @@ function extractCardImages(html) {
 }
 var CLAMP_PX = 166;
 var VIEW_TYPE = "diary-stream-view";
+var BaseModal = import_obsidian3.Modal || null;
+var DiarySheetModal = BaseModal ? class extends BaseModal {
+  constructor(app, view, sheetEl, opts = {}) {
+    super(app);
+    this.view = view;
+    this.sheetEl = sheetEl;
+    this.opts = opts;
+    this.placeholder = null;
+    this.onContainerClick = (e) => {
+      if (e.target === this.containerEl || e.target === this.modalEl || e.target.classList?.contains("modal-bg")) {
+        this.close();
+        return;
+      }
+      void this.view.onClick(e);
+    };
+  }
+  onOpen() {
+    const { containerEl, modalEl, contentEl } = this;
+    if (!containerEl || !modalEl || !contentEl) return;
+    containerEl.classList.add("ds-root", "ds-scope", "ds-sheet-modal-wrap");
+    if (this.view.root?.classList.contains("is-narrow")) containerEl.classList.add("is-narrow");
+    if (this.view.root?.classList.contains("is-compact")) containerEl.classList.add("is-compact");
+    const pal = this.view.settings?.palette || "auto";
+    containerEl.classList.add("ds-pal-" + pal);
+    modalEl.classList.add("ds-sheet-modal");
+    contentEl.classList.add("ds-sheet-modal-content");
+    this.view.syncViewport?.(containerEl);
+    if (this.sheetEl && this.sheetEl.parentNode) {
+      this.placeholder = this.sheetEl.ownerDocument.createComment("ds-sheet-placeholder");
+      this.sheetEl.parentNode.insertBefore(this.placeholder, this.sheetEl);
+      contentEl.appendChild(this.sheetEl);
+    }
+    containerEl.addEventListener("click", this.onContainerClick);
+    this.scope?.register([], "Escape", () => {
+      if (this.opts.onEscape?.() === false) return false;
+      this.close();
+      return false;
+    });
+    const win = containerEl.ownerDocument.defaultView;
+    win.requestAnimationFrame(() => {
+      this.sheetEl?.classList.add("is-open");
+      this.opts.onShown?.();
+    });
+  }
+  onClose() {
+    this.containerEl?.removeEventListener("click", this.onContainerClick);
+    if (this.sheetEl) {
+      const ae = this.sheetEl.ownerDocument?.activeElement;
+      if (ae && this.sheetEl.contains(ae)) ae.blur?.();
+      this.sheetEl.classList.remove("is-open", "is-dragging", "is-input-focused");
+      this.sheetEl.style.transform = "";
+    }
+    if (this.placeholder?.parentNode && this.sheetEl) {
+      this.placeholder.parentNode.insertBefore(this.sheetEl, this.placeholder);
+      this.placeholder.remove();
+    }
+    this.placeholder = null;
+    this.opts.onClosed?.();
+  }
+} : null;
 var DiaryStreamView = class extends import_obsidian3.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -1494,7 +1558,15 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     __publicField(this, "off", null);
     __publicField(this, "ro", null);
     __publicField(this, "vvHandler", null);
+    __publicField(this, "onWinResize", null);
+    __publicField(this, "onTitleClick", null);
     __publicField(this, "onSheetKeydown", null);
+    __publicField(this, "sheetModal", null);
+    __publicField(this, "overlayScope", null);
+    __publicField(this, "baseViewportH", 0);
+    __publicField(this, "lastViewportW", 0);
+    __publicField(this, "focusOutTimer", 0);
+    __publicField(this, "kbCheckTimers", []);
     __publicField(this, "toastTimer", 0);
     __publicField(this, "lightbox", null);
     __publicField(this, "toTopBtn", null);
@@ -1540,58 +1612,178 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
   get settings() {
     return this.plugin.data.settings;
   }
+  q(sel) {
+    return this.root?.querySelector(sel) || this.sheetModal?.containerEl?.querySelector(sel) || null;
+  }
   applyPalette() {
     if (!this.root) return;
     const pal = this.settings.palette || "auto";
-    for (const [key] of PALETTES) this.root.classList.remove("ds-pal-" + key);
-    this.root.classList.add("ds-pal-" + pal);
+    for (const host of [this.root, this.sheetModal?.containerEl]) {
+      if (!host?.classList) continue;
+      for (const [key] of PALETTES) host.classList.remove("ds-pal-" + key);
+      host.classList.add("ds-pal-" + pal);
+    }
   }
-  setWriteOrigin(triggerEl) {
-    const sheet = this.root?.querySelector(".ds-write-sheet");
-    const btn = triggerEl || this.root?.querySelector(".ds-fab");
-    if (!sheet || !btn) return;
-    const s = sheet.getBoundingClientRect();
-    const b = btn.getBoundingClientRect();
-    if (!s.width || !s.height || !b.width || !b.height) return;
-    const top = Math.max(0, Math.min(s.height - 20, b.top - s.top));
-    const right = Math.max(0, Math.min(s.width - 20, s.right - b.right));
-    const bottom = Math.max(0, Math.min(s.height - 20, s.bottom - b.bottom));
-    const left = Math.max(0, Math.min(s.width - 20, b.left - s.left));
-    const rad = Math.min(b.width, b.height) / 2;
-    sheet.style.setProperty("--ox-t", `${top.toFixed(1)}px`);
-    sheet.style.setProperty("--ox-r", `${right.toFixed(1)}px`);
-    sheet.style.setProperty("--ox-b", `${bottom.toFixed(1)}px`);
-    sheet.style.setProperty("--ox-l", `${left.toFixed(1)}px`);
-    sheet.style.setProperty("--ox-rad", `${rad.toFixed(1)}px`);
+  syncViewport(extraTarget = null) {
+    const doc = this.root?.ownerDocument;
+    const win = doc?.defaultView;
+    if (!doc || !win) return;
+    const vv = win.visualViewport;
+    const winW = win.innerWidth || 0;
+    const winH = win.innerHeight || 0;
+    const vvH = vv?.height || winH;
+    if (winW && Math.abs(winW - this.lastViewportW) > 40) {
+      this.lastViewportW = winW;
+      this.baseViewportH = 0;
+    }
+    this.baseViewportH = Math.max(this.baseViewportH, winH, vvH);
+    const bodyPadB = parseFloat(win.getComputedStyle?.(doc.body)?.paddingBottom || "0") || 0;
+    const candidates = [winH, vvH, bodyPadB > 100 ? winH - bodyPadB : 0].filter((n) => n > 120);
+    const visH = candidates.length ? Math.round(Math.min(...candidates)) : 0;
+    const kbOpen = (this.baseViewportH > 0 && visH > 0 && this.baseViewportH - visH > 120)
+      || !!doc.body?.classList?.contains("is-keyboard-open")
+      || bodyPadB > 120;
+    let navBottom = 0;
+    if (doc.body?.classList?.contains("is-mobile") && !kbOpen) {
+      const nav = doc.querySelector(".mobile-navbar");
+      const nr = nav?.getBoundingClientRect?.();
+      if (nr && nr.height > 0 && visH > 0 && nr.top < visH) {
+        navBottom = Math.max(0, Math.ceil(visH - nr.top) + 4);
+      } else {
+        navBottom = 78;
+      }
+    }
+    for (const host of [this.root, this.sheetModal?.containerEl, extraTarget]) {
+      if (!host?.style) continue;
+      if (visH > 0) host.style.setProperty("--ds-vvh", `${visH}px`);
+      host.style.setProperty("--ds-nav-bottom", `${navBottom}px`);
+      host.classList?.toggle("is-kb-open", kbOpen);
+      if (host.classList?.contains("ds-sheet-modal-wrap")) {
+        const mr = host.getBoundingClientRect?.();
+        const kbLift = kbOpen && visH > 0 && mr && mr.bottom > visH + 4 ? Math.round(mr.bottom - visH) : 0;
+        host.style.setProperty("--ds-kb-lift", `${kbLift}px`);
+      }
+    }
   }
-  setSheet(next, triggerEl = null) {
+  scheduleKbChecks() {
+    const win = this.root?.ownerDocument?.defaultView;
+    if (!win) return;
+    this.kbCheckTimers.forEach((id) => win.clearTimeout(id));
+    this.kbCheckTimers = [80, 220, 420].map((ms) => win.setTimeout(() => this.syncViewport(), ms));
+  }
+  handleBackAction() {
+    if (this.lightbox?.isOpen) {
+      this.lightbox.close();
+      return true;
+    }
+    if (this.S.confirm) {
+      this.S.confirm = null;
+      this.renderConfirm();
+      if (this.pending) this.renderAll();
+      this.syncOverlayScope();
+      return true;
+    }
+    if (this.S.menu) {
+      this.S.menu = null;
+      this.renderStream();
+      this.syncOverlayScope();
+      return true;
+    }
+    if (this.S.sheet) {
+      if (this.S.sheet === "write" && this.composer?.dismissTools()) return true;
+      this.setSheet(null);
+      return true;
+    }
+    if (this.S.editing) {
+      this.requestEditExit("edit");
+      return true;
+    }
+    if (this.S.searchOpen && !this.searchModal?.open) {
+      this.toggleSearch(false);
+      return true;
+    }
+    return false;
+  }
+  syncOverlayScope() {
+    const needs = !this.sheetModal && !!(this.S.menu || this.S.confirm || (this.S.searchOpen && !this.searchModal?.open) || this.lightbox?.isOpen || this.S.editing);
+    if (needs && !this.overlayScope && import_obsidian3.Scope && this.app?.keymap) {
+      const scope = new import_obsidian3.Scope(this.app.scope);
+      scope.register([], "Escape", () => this.handleBackAction() ? false : void 0);
+      this.overlayScope = scope;
+      this.app.keymap.pushScope(scope);
+    } else if (!needs && this.overlayScope) {
+      this.app?.keymap?.popScope(this.overlayScope);
+      this.overlayScope = null;
+    }
+  }
+  setSheet(next) {
     const prev = this.S.sheet;
     if (prev === next) return;
-    if (next === "write") {
-      this.setWriteOrigin(triggerEl);
-      this.composer?.renderQuickTags();
-      const ws = this.root.querySelector(".ds-write-sheet");
-      if (ws) void ws.offsetWidth;
-    } else if (prev === "write") {
-      this.setWriteOrigin(this.root.querySelector(".ds-fab"));
+    if (this.sheetModal) {
+      const oldModal = this.sheetModal;
+      this.sheetModal = null;
+      oldModal.close();
     }
     this.S.sheet = next;
     this.S.showCal = next === "cal";
-    this.root.toggleClass("show-cal", next === "cal");
-    this.root.toggleClass("has-sheet", !!next);
-    this.root.querySelector(".ds-backdrop")?.classList.toggle("is-open", !!next);
-    this.root.querySelector(".ds-write-sheet")?.classList.toggle("is-open", next === "write");
-    this.root.querySelector(".ds-side")?.classList.toggle("is-open", next === "cal");
-    this.root.querySelector(".ds-filter-sheet")?.classList.toggle("is-open", next === "filter");
-    this.root.querySelector(".ds-fab")?.classList.toggle("is-hidden", !!next);
-    if (next === "cal") {
-      window.requestAnimationFrame(() => this.renderHeat());
+    this.root?.toggleClass?.("show-cal", next === "cal");
+    this.root?.toggleClass?.("has-sheet", !!next);
+    this.root?.querySelector(".ds-fab")?.classList.toggle("is-hidden", !!next);
+    if (!next) {
+      this.root?.querySelector(".ds-backdrop")?.classList.remove("is-open");
+      [".ds-write-sheet", ".ds-side", ".ds-filter-sheet"].forEach((sel) => {
+        const el = this.q(sel);
+        el?.classList.remove("is-open", "is-dragging", "is-input-focused");
+        if (el) el.style.transform = "";
+      });
+      this.syncOverlayScope();
+      return;
     }
-    if (next === "write") {
-      window.setTimeout(() => {
-        this.composer?.autosize();
-        this.composer?.ta?.focus({ preventScroll: false });
-      }, 220);
+    if (next === "write") this.composer?.renderQuickTags();
+    const sheetSel = next === "write" ? ".ds-write-sheet" : next === "cal" ? ".ds-side" : ".ds-filter-sheet";
+    const sheetEl = this.q(sheetSel);
+    const onShown = () => {
+      if (next === "cal") {
+        this.root?.ownerDocument?.defaultView?.requestAnimationFrame(() => this.renderHeat());
+      }
+      if (next === "write") {
+        this.syncViewport();
+        this.root?.ownerDocument?.defaultView?.setTimeout(() => {
+          if (this.S.sheet !== "write") return;
+          this.composer?.autosize();
+          this.composer?.ta?.focus({ preventScroll: true });
+          this.scheduleKbChecks();
+        }, 220);
+      }
+    };
+    if (DiarySheetModal && this.app && sheetEl) {
+      const modal = new DiarySheetModal(this.app, this, sheetEl, {
+        onEscape: () => {
+          if (next === "write" && this.composer?.dismissTools()) return false;
+          return true;
+        },
+        onShown,
+        onClosed: () => {
+          if (this.sheetModal !== modal) return;
+          this.sheetModal = null;
+          this.S.sheet = null;
+          this.S.showCal = false;
+          this.root?.toggleClass?.("show-cal", false);
+          this.root?.toggleClass?.("has-sheet", false);
+          this.root?.querySelector(".ds-fab")?.classList.remove("is-hidden");
+          this.syncOverlayScope();
+        }
+      });
+      this.sheetModal = modal;
+      this.syncOverlayScope();
+      modal.open();
+    } else {
+      this.root?.querySelector(".ds-backdrop")?.classList.add("is-open");
+      [".ds-write-sheet", ".ds-side", ".ds-filter-sheet"].forEach((sel) => {
+        this.root?.querySelector(sel)?.classList.toggle("is-open", sel === sheetSel);
+      });
+      onShown();
+      this.syncOverlayScope();
     }
   }
   bindSheetDrag(sheet) {
@@ -1625,7 +1817,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const c = this.contentEl;
     c.empty();
     c.addClass("ds-view");
-    this.root = c.createDiv({ cls: "ds-root" });
+    this.root = c.createDiv({ cls: "ds-root ds-scope" });
     this.applyPalette();
     this.root.innerHTML = `
       <div class="ds-wrap">
@@ -1638,7 +1830,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         </div>
         <aside class="ds-side ds-sheet-mobile">
           <div class="ds-sheet-handle ds-only-narrow"></div>
-          <div class="ds-sheet-head ds-only-narrow"><span class="ds-sheet-title">\u65F6\u5149\u8DB3\u8FF9</span><button type="button" class="ds-sheet-close" data-act="closesheet" data-icon="x"><span class="ds-sr-only">\u5173\u95ED</span></button></div>
+          <div class="ds-sheet-head ds-only-narrow"><span class="ds-sheet-title">\u65F6\u5149\u8DB3\u8FF9</span><button type="button" class="ds-sheet-close" data-act="closesheet"><span data-icon="x"></span><span class="ds-sr-only">\u5173\u95ED</span></button></div>
           <div class="ds-side-body">
             <div class="ds-box"><div class="ds-stats"></div><div class="ds-heat"></div></div>
             <div class="ds-box"><div class="ds-mcal"></div></div>
@@ -1661,7 +1853,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       </section>
       <section class="ds-sheet ds-filter-sheet" role="dialog" aria-modal="true" aria-label="\u7B5B\u9009\u4E0E\u6807\u7B7E">
         <div class="ds-sheet-handle"></div>
-        <div class="ds-sheet-head"><span class="ds-sheet-title">\u7B5B\u9009\u4E0E\u6807\u7B7E</span><button type="button" class="ds-sheet-close" data-act="closesheet" data-icon="x"><span class="ds-sr-only">\u5173\u95ED</span></button></div>
+        <div class="ds-sheet-head"><span class="ds-sheet-title">\u7B5B\u9009\u4E0E\u6807\u7B7E</span><button type="button" class="ds-sheet-close" data-act="closesheet"><span data-icon="x"></span><span class="ds-sr-only">\u5173\u95ED</span></button></div>
         <div class="ds-sheet-body"><div class="ds-sheet-sec"><h5>\u6309\u65F6\u95F4\u4E0E\u7C7B\u578B</h5><div class="ds-chips ds-mfilterlist"></div></div><div class="ds-sheet-sec"><h5>\u5E38\u7528\u6807\u7B7E</h5><div class="ds-taglist ds-mtaglist"></div></div></div>
       </section>
       <div class="ds-toast" hidden></div>
@@ -1674,11 +1866,18 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     this.toTopBtn.addEventListener("click", () => {
       this.contentEl.scrollTo({ top: 0, behavior: "smooth" });
     });
+    const headerTitle = this.containerEl.querySelector(".view-header-title");
+    if (headerTitle) {
+      this.onTitleClick = () => {
+        if (this.contentEl.scrollTop > 0) this.contentEl.scrollTo({ top: 0, behavior: "smooth" });
+      };
+      headerTitle.addEventListener("click", this.onTitleClick);
+    }
     this.contentEl.addEventListener("scroll", this.onScroll, { passive: true });
     this.lightbox = new Lightbox(this.containerEl, (path) => {
       const f = this.store.fileAt(path);
       if (f) void this.app.workspace.getLeaf("tab").openFile(f);
-    });
+    }, () => this.syncOverlayScope());
     this.composer = new Composer(this.root.querySelector(".ds-composer"), {
       tagCounts: () => this.tagCounts(),
       dayStartHour: () => this.settings.dayStartHour,
@@ -1697,6 +1896,28 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         this.flash(r.path);
       }
     }, "new");
+    const writeSheet = this.root.querySelector(".ds-write-sheet");
+    if (writeSheet) {
+      writeSheet.addEventListener("focusin", (e) => {
+        if (!e.target?.matches?.("textarea,input")) return;
+        const win = this.root?.ownerDocument?.defaultView;
+        win?.clearTimeout(this.focusOutTimer);
+        writeSheet.classList.add("is-input-focused");
+        this.syncViewport();
+        this.scheduleKbChecks();
+      });
+      writeSheet.addEventListener("focusout", () => {
+        const win = this.root?.ownerDocument?.defaultView;
+        win?.clearTimeout(this.focusOutTimer);
+        this.focusOutTimer = win ? win.setTimeout(() => {
+          const ae = this.root?.ownerDocument?.activeElement;
+          if (!ae || !writeSheet.contains(ae) || !ae.matches?.("textarea,input")) {
+            writeSheet.classList.remove("is-input-focused");
+            this.syncViewport();
+          }
+        }, 140) : 0;
+      });
+    }
     [".ds-write-sheet", ".ds-side", ".ds-filter-sheet"].forEach((sel) => this.bindSheetDrag(this.root.querySelector(sel)));
     const q = this.root.querySelector(".ds-q");
     q.addEventListener("input", () => {
@@ -1711,35 +1932,45 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         if (this.S.confirm) {
           this.S.confirm = null;
           this.renderConfirm();
+          this.syncOverlayScope();
           return;
         }
         this.toggleSearch(false);
       }
     });
     this.onSheetKeydown = (e) => {
-      if (e.key === "Escape" && !e.isComposing && this.S.sheet && !this.S.editing && !this.S.confirm) {
+      if (e.key === "Escape" && !e.isComposing && !this.sheetModal && this.S.sheet && !this.S.editing && !this.S.confirm) {
         if (this.S.sheet === "write" && this.composer?.dismissTools()) return;
         e.preventDefault();
         this.setSheet(null);
       }
     };
     this.root.ownerDocument.addEventListener("keydown", this.onSheetKeydown);
-    const vv = this.root.ownerDocument.defaultView?.visualViewport;
+    const win = this.root.ownerDocument.defaultView;
+    const vv = win?.visualViewport;
+    this.vvHandler = () => this.syncViewport();
     if (vv) {
-      this.vvHandler = () => {
-        this.root?.style.setProperty("--ds-vvh", `${Math.round(vv.height)}px`);
-      };
       vv.addEventListener("resize", this.vvHandler);
-      this.vvHandler();
+      vv.addEventListener("scroll", this.vvHandler);
     }
+    this.onWinResize = () => this.syncViewport();
+    win?.addEventListener("resize", this.onWinResize);
+    this.syncViewport();
     this.root.addEventListener("click", (e) => this.onClick(e));
     this.root.ownerDocument.addEventListener("click", this.onSearchOutside, true);
     const updateWidth = () => {
-      this.root.toggleClass("is-narrow", this.root.clientWidth < 760);
+      const narrow = this.root.clientWidth < 760;
+      this.root.toggleClass("is-narrow", narrow);
       this.root.toggleClass("is-compact", this.root.clientWidth < 480);
-      const heat = this.root.querySelector(".ds-heat");
-      if (heat.clientWidth && heat.dataset.weeks !== String(this.heatWeeks())) this.renderHeat();
-      if (!this.S.sheet) this.setWriteOrigin();
+      this.containerEl.toggleClass("is-narrow", narrow);
+      if (this.sheetModal?.containerEl) {
+        this.sheetModal.containerEl.classList.toggle("is-narrow", narrow);
+        this.sheetModal.containerEl.classList.toggle("is-compact", this.root.clientWidth < 480);
+      }
+      if (!narrow && this.S.sheet === "cal") this.setSheet(null);
+      const heat = this.q(".ds-heat");
+      if (heat?.clientWidth && heat.dataset.weeks !== String(this.heatWeeks())) this.renderHeat();
+      this.syncViewport();
     };
     this.ro = new ResizeObserver(updateWidth);
     this.ro.observe(this.root);
@@ -1756,6 +1987,19 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     this.renderAll();
   }
   async onClose() {
+    const win = this.root?.ownerDocument?.defaultView;
+    win?.clearTimeout(this.focusOutTimer);
+    this.kbCheckTimers.forEach((id) => win?.clearTimeout(id));
+    this.kbCheckTimers = [];
+    if (this.sheetModal) {
+      const m = this.sheetModal;
+      this.sheetModal = null;
+      m.close();
+    }
+    if (this.overlayScope) {
+      this.app?.keymap?.popScope(this.overlayScope);
+      this.overlayScope = null;
+    }
     this.editExitDialog?.close();
     this.editExitDialog?.remove();
     this.root?.querySelectorAll("audio").forEach((audio) => audio.pause());
@@ -1764,10 +2008,15 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     this.searchModal?.close();
     this.searchModal?.remove();
     if (this.onSheetKeydown) this.root.ownerDocument.removeEventListener("keydown", this.onSheetKeydown);
-    const vv = this.root?.ownerDocument?.defaultView?.visualViewport;
-    if (vv && this.vvHandler) vv.removeEventListener("resize", this.vvHandler);
+    const vv = win?.visualViewport;
+    if (vv && this.vvHandler) {
+      vv.removeEventListener("resize", this.vvHandler);
+      vv.removeEventListener("scroll", this.vvHandler);
+    }
+    if (win && this.onWinResize) win.removeEventListener("resize", this.onWinResize);
+    if (this.onTitleClick) this.containerEl?.querySelector(".view-header-title")?.removeEventListener("click", this.onTitleClick);
     this.root.ownerDocument.removeEventListener("click", this.onSearchOutside, true);
-    this.root.ownerDocument.defaultView.clearTimeout(this.searchOutsideTimer);
+    win?.clearTimeout(this.searchOutsideTimer);
     this.contentEl.removeEventListener("scroll", this.onScroll);
     this.toTopBtn?.remove();
     this.lightbox?.destroy();
@@ -1780,12 +2029,12 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
   icons(el) {
     el.querySelectorAll("[data-icon]").forEach((x) => {
       const n = x.dataset.icon;
-      if (!x.firstChild || x.classList.contains("ds-vplay")) (0, import_obsidian3.setIcon)(x, n);
+      if (!x.querySelector("svg") || x.classList.contains("ds-vplay")) (0, import_obsidian3.setIcon)(x, n);
     });
   }
   /* ---------------- 数据 ---------------- */
   isSearchInteraction(target) {
-    return [".ds-main", ".ds-side", ".ds-calbtn", ".ds-filter-trigger", ".ds-filter-sheet", ".ds-write-sheet", ".ds-fab", ".ds-confirm", ".ds-toast"].some((selector) => this.root.querySelector(selector)?.contains(target)) || !!this.searchModal?.contains(target) || !!this.lightbox?.el.contains(target);
+    return [".ds-main", ".ds-side", ".ds-calbtn", ".ds-filter-trigger", ".ds-filter-sheet", ".ds-write-sheet", ".ds-fab", ".ds-confirm", ".ds-toast"].some((selector) => this.root.querySelector(selector)?.contains(target)) || !!this.sheetModal?.containerEl?.contains(target) || !!this.searchModal?.contains(target) || !!this.lightbox?.el.contains(target);
   }
   toggleSearch(open, restoreFocus = true) {
     if (!open && this.S.editing) {
@@ -1850,6 +2099,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         this.searchAnimations = [];
       };
     }
+    this.syncOverlayScope();
   }
   toggleDesktopSearch(open, restoreFocus = true) {
     if (this.searchModalClosing || open === this.S.searchOpen) return;
@@ -1975,6 +2225,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     this.S.editing = null;
     if (this.pending) this.renderAll();
     else this.renderStream();
+    this.syncOverlayScope();
   }
   requestEditExit(intent = "edit") {
     const editor = this.editComposer;
@@ -2098,7 +2349,8 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const set = new Set(days.map((d) => d.date));
     let streak = 0;
     for (let d = parseYmd(days[0]?.date || "1970-01-01"); set.has(ymd(d)); d.setDate(d.getDate() - 1)) streak++;
-    this.root.querySelector(".ds-stats").innerHTML = `<div class="ds-stats-summary"><span>\u5DF2\u5199\u4E0B <b>${days.length}</b> \u5929 \xB7 <b>${all.length}</b> \u7BC7</span><span>\u8FDE\u7EED <b>${streak}</b> \u5929</span></div>`;
+    const st = this.q(".ds-stats");
+    if (st) st.innerHTML = `<div class="ds-stats-summary"><span>\u5DF2\u5199\u4E0B <b>${days.length}</b> \u5929 \xB7 <b>${all.length}</b> \u7BC7</span><span>\u8FDE\u7EED <b>${streak}</b> \u5929</span></div>`;
   }
   renderChips() {
     const all = this.allSections(), tc = this.tagCounts();
@@ -2106,16 +2358,17 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const tchip = ([t, n]) => `<button type="button" class="ds-chip ds-tagchip${this.S.tag === t ? " is-on" : ""}" data-tagchip="${esc(t)}">#${esc(t)}<i>${n}</i></button>`;
     const filterHtml = this.filters().map(chip).join("");
     const tagHtml = tc.length ? tc.map(tchip).join("") : '<span class="ds-muted">\u8FD8\u6CA1\u6709\u6807\u7B7E\u3002\u5199\u65E5\u8BB0\u65F6\u70B9 # \u6DFB\u52A0\u3002</span>';
-    const fl = this.root.querySelector(".ds-filterlist"), tl = this.root.querySelector(".ds-taglist");
+    const fl = this.q(".ds-filterlist"), tl = this.q(".ds-taglist");
     if (fl) fl.innerHTML = filterHtml;
     if (tl) tl.innerHTML = tagHtml;
-    const mfl = this.root.querySelector(".ds-mfilterlist"), mtl = this.root.querySelector(".ds-mtaglist");
+    const mfl = this.q(".ds-mfilterlist"), mtl = this.q(".ds-mtaglist");
     if (mfl) mfl.innerHTML = filterHtml;
     if (mtl) mtl.innerHTML = tagHtml;
     this.root.querySelector(".ds-filter-trigger")?.classList.toggle("has-dot", !!(this.S.filter || this.S.tag || this.S.date));
   }
   heatWeeks() {
-    const width = this.root.querySelector(".ds-heat").clientWidth;
+    const heat = this.q(".ds-heat");
+    const width = heat?.clientWidth || 0;
     if (!width) return 12;
     const cell = this.root.classList.contains("is-narrow") ? 16 : 13;
     return Math.max(8, Math.min(26, Math.floor((width + 3) / (cell + 3))));
@@ -2138,7 +2391,8 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       const k2 = ymd(d), n = by[k2] || 0;
       cells += `<button type="button" class="ds-hc l${lv(n)}${this.S.date === k2 ? " is-sel" : ""}${k2 === today ? " is-today" : ""}" ${n ? `data-date="${k2}"` : "disabled"} aria-label="${k2}${n ? " \xB7 " + (n / 1024).toFixed(1) + "KB" : ""}" title="${k2}"></button>`;
     }
-    const heat = this.root.querySelector(".ds-heat");
+    const heat = this.q(".ds-heat");
+    if (!heat) return;
     heat.dataset.weeks = String(weeks);
     heat.innerHTML = `<div class="ds-hgrid" style="--ds-heat-weeks:${weeks}">${cells}</div><div class="ds-hlegend"><span>\u8FD1 ${weeks} \u5468</span><span class="ds-sp"></span><span>\u5C11</span><i class="ds-hc l0"></i><i class="ds-hc l1"></i><i class="ds-hc l2"></i><i class="ds-hc l3"></i><span>\u591A</span></div>`;
   }
@@ -2150,14 +2404,15 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     if (mt) mt.textContent = `${m}\u6708`;
     if (ms) ms.textContent = String(y);
     const has = new Set(days.map((d) => d.date));
-    let h = `<div class="ds-mhd"><button type="button" class="clickable-icon" data-mnav="-1" data-icon="chevron-left"><span class="ds-sr-only">\u4E0A\u4E2A\u6708</span></button><b>${y} \u5E74 ${m} \u6708</b><button type="button" class="clickable-icon" data-mnav="1" data-icon="chevron-right"><span class="ds-sr-only">\u4E0B\u4E2A\u6708</span></button></div><div class="ds-mgrid">`;
+    let h = `<div class="ds-mhd"><button type="button" class="clickable-icon" data-mnav="-1"><span data-icon="chevron-left"></span><span class="ds-sr-only">\u4E0A\u4E2A\u6708</span></button><b>${y} \u5E74 ${m} \u6708</b><button type="button" class="clickable-icon" data-mnav="1"><span data-icon="chevron-right"></span><span class="ds-sr-only">\u4E0B\u4E2A\u6708</span></button></div><div class="ds-mgrid">`;
     h += "\u65E5\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D".split("").map((w) => `<span class="ds-w">${w}</span>`).join("");
     for (let i = 0; i < first.getDay(); i++) h += "<span></span>";
     for (let d = 1; d <= n; d++) {
       const k2 = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       h += has.has(k2) ? `<button type="button" class="ds-md is-has${this.S.date === k2 ? " is-sel" : ""}" data-date="${k2}">${d}</button>` : `<span class="ds-md">${d}</span>`;
     }
-    const el = this.root.querySelector(".ds-mcal");
+    const el = this.q(".ds-mcal");
+    if (!el) return;
     el.innerHTML = h + "</div>";
     this.icons(el);
   }
@@ -2188,7 +2443,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const hasFoot = tags.length || showClamp;
     return `<article class="ds-card${s.buji ? " is-buji" : ""}" data-key="${esc(key)}">
       <header class="ds-chead">${when}<span class="ds-badges">${s.hasVoice ? '<span data-icon="mic"></span>' : ""}</span>
-        <button type="button" class="ds-kebab clickable-icon" data-menu="${esc(key)}" data-icon="more-horizontal"><span class="ds-sr-only">\u66F4\u591A</span></button>
+        <button type="button" class="ds-kebab clickable-icon" data-menu="${esc(key)}"><span data-icon="more-horizontal"></span><span class="ds-sr-only">\u66F4\u591A</span></button>
         ${this.S.menu === key ? `<div class="ds-menu" role="menu"><button type="button" data-editkey="${esc(key)}"><span data-icon="pencil"></span>\u7F16\u8F91</button><button type="button" data-delkey="${esc(key)}" class="mod-warning"><span data-icon="trash-2"></span>\u5220\u9664</button><button type="button" data-openkey="${esc(key)}"><span data-icon="file-text"></span>\u6253\u5F00\u6E90\u6587\u4EF6</button></div>` : ""}
       </header>
       ${sub}
@@ -2432,11 +2687,13 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     if (this.S.menu && !(t && (t.dataset.menu || t.closest(".ds-menu")))) {
       this.S.menu = null;
       this.renderStream();
+      this.syncOverlayScope();
     }
     if (!t) return;
     const act = t.dataset.act;
     if (act === "openwrite") {
-      this.setSheet("write", t);
+      if (this.composer?.empty()) this.composer.setBackdate(null);
+      this.setSheet("write");
       return;
     }
     if (act === "closesheet") {
@@ -2449,7 +2706,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     }
     if (t.dataset.bujiday) {
       this.composer?.setBackdate(t.dataset.bujiday);
-      this.setSheet("write", t);
+      this.setSheet("write");
       return;
     }
     if (t.dataset.resultkey) {
@@ -2509,12 +2766,14 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     if (t.dataset.menu) {
       this.S.menu = this.S.menu === t.dataset.menu ? null : t.dataset.menu;
       this.renderStream();
+      this.syncOverlayScope();
       return;
     }
     if (t.dataset.editkey) {
       this.S.menu = null;
       this.S.editing = t.dataset.editkey;
       this.renderStream();
+      this.syncOverlayScope();
       return;
     }
     if (t.dataset.delkey) {
@@ -2522,12 +2781,14 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       this.S.confirm = t.dataset.delkey;
       this.renderStream();
       this.renderConfirm();
+      this.syncOverlayScope();
       return;
     }
     if (t.dataset.openkey) {
       const s = this.section(t.dataset.openkey);
       this.S.menu = null;
       this.renderStream();
+      this.syncOverlayScope();
       const f = s && this.store.fileAt(s.path);
       if (f) await this.app.workspace.getLeaf("tab").openFile(f, { eState: { line: s.start } });
       return;
@@ -2535,6 +2796,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     if (act === "cf-cancel") {
       this.S.confirm = null;
       this.renderConfirm();
+      this.syncOverlayScope();
       if (this.pending) this.renderAll();
       return;
     }
@@ -2542,6 +2804,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       const s = this.S.confirm ? this.section(this.S.confirm) : null;
       this.S.confirm = null;
       this.renderConfirm();
+      this.syncOverlayScope();
       if (!s) return;
       try {
         const r = await this.store.remove(s);
@@ -2584,8 +2847,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       if (this.root.classList.contains("is-narrow")) {
         this.setSheet(this.S.sheet === "cal" ? null : "cal");
       } else {
-        this.S.showCal = !this.S.showCal;
-        this.root.toggleClass("show-cal", this.S.showCal);
+        this.root.classList.toggle("is-side-collapsed");
       }
       return;
     }

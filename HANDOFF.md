@@ -59,4 +59,14 @@ git diff --check
   5. **设置页新增 6 套外观色调**：`palette` 支持 `auto`（跟随 Obsidian 主题色）/ `mono` / `blue` / `green` / `violet` / `coral`，深浅模式即时生效。
 - **验证与状态**：`npm run check`、`npm test`（23/23，新增 `tests/redesign.cjs` 6 项）和 `git diff --check` 全部通过；已同步版本至 `0.2.0` 供 BRAT 拉取（保留旧 0.1.4 / 0.1.5 标签与资产），尚未在 Obsidian 实机或手机真机验收。
 
+## 2026-11-24 0.2.1 移动端真机问题修复（Antigravity）
+
+- **修复内容**：
+  1. 按钮重置权重由 `:where(.ds-root button)` 提升为 `body .ds-scope.ds-root button` + `.ds-scope.ds-root .ds-xxx`，移除 `.ds-send` 上的 `.mod-cta`，修复顶部月份触发器、搜索/筛选图标、卡片弹出菜单、「+ 补记」、快捷标签与「保存」按钮被 Obsidian 移动端原生样式覆盖的问题。
+  2. 将卡片右上角 `⋯`、抽屉关闭 `×`、日历切月箭头与附件移除图标的 `data-icon` 迁至内部空 `<span>`，并将 `icons()` 跳过条件改为 `!x.querySelector("svg")`，修复图标因 `.ds-sr-only` 子节点而隐身的问题。
+  3. 移除 `.ds-wrap` 的 `transform: scale(0.984)` 避免破坏日历抽屉 `position: fixed`；放弃 `clip-path` 与过冲弹簧，三个底部抽屉改为通过 Obsidian 原生 `Modal`（`DiarySheetModal`）承载，原生避让底部悬浮导航栏并正确响应安卓返回键；其余弹层接入 `app.keymap` `Scope` 逐级拦截返回。
+  4. 完善 `syncViewport()`（监听 `visualViewport.resize/scroll` 与 `window.resize`、计算 `--ds-kb-lift` 与 `adjustPan` 限高兜底），修复软键盘弹出时写作抽屉顶部被顶出屏幕的问题。
+  5. 移动端隐藏右下角小白色 `↑` 按钮，仅保留单个橙色写作 FAB，并支持轻点顶部「日记流」标题回到顶部。
+- **验证与状态**：`npm run check`、`npm test`（28/28）及 `390×844` 移动端仿真浏览器 QA 全部通过；已发布 `0.2.1` 供 BRAT 拉取，待用户安卓真机验收。
+
 最后提交：e7e1e2c8f5f9762a137be2414c80cfe1d9849f2c

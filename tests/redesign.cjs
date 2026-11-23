@@ -112,3 +112,221 @@ test('search outside click does not break on new mobile sheet controls', () => {
     assert.equal(view.isSearchInteraction({ scope }), true, scope);
   }
 });
+
+test('icons() renders icons even when sibling sr-only text exists and no button combines data-icon with sr-only', () => {
+  assert.doesNotMatch(
+    source,
+    /<button[^>]*data-icon="[^"]+"[^>]*><span class="ds-sr-only">/,
+    'data-icon should live on an inner span rather than a button with sr-only child'
+  );
+  const rendered = [];
+  const ctx2 = vm.createContext({
+    module: { exports: {} },
+    require: () => ({
+      ItemView: class {},
+      Plugin: class {},
+      PluginSettingTab: class {},
+      setIcon: (el, name) => rendered.push(name)
+    })
+  });
+  vm.runInContext(source + '\nthis.View = DiaryStreamView;', ctx2);
+  const view = Object.create(ctx2.View.prototype);
+  const fakeEl = {
+    querySelectorAll: () => [
+      { dataset: { icon: 'more-horizontal' }, firstChild: { tagName: 'SPAN' }, querySelector: () => null, classList: { contains: () => false } },
+      { dataset: { icon: 'x' }, firstChild: null, querySelector: () => ({ tagName: 'svg' }), classList: { contains: () => false } }
+    ]
+  };
+  view.icons(fakeEl);
+  assert.deepEqual(rendered, ['more-horizontal']);
+});
+
+test('CSS avoids zero-specificity button reset, wrap transform trap, clip-path morph, and mobile to-top button', () => {
+  const css = readFileSync(join(__dirname, '..', 'styles.css'), 'utf8');
+  assert.ok(!css.includes(':where(.ds-root button)'), 'must not use zero-specificity :where() for button reset');
+  assert.ok(!css.includes('.ds-root.is-narrow.has-sheet .ds-wrap'), 'must not transform .ds-wrap and break fixed sheets');
+  assert.ok(!css.includes('clip-path: inset(var(--ox-t)'), 'must not use clip-path morph on write sheet');
+  assert.match(css, /\.is-mobile\s+\.ds-leaf\s+\.ds-totop[\s\S]*display:\s*none\s*!important/);
+  assert.match(css, /\.ds-scope\.ds-root\s+\.ds-menu\s+button/);
+});
+
+test('handleBackAction and overlay Scope dismiss overlays in strict priority order', () => {
+  const pushed = [], popped = [];
+  class MockScope {
+    constructor(parent) { this.parent = parent; this.handlers = []; }
+    register(mods, key, cb) { this.handlers.push({ mods, key, cb }); }
+  }
+  const ctx2 = vm.createContext({
+    module: { exports: {} },
+    require: () => ({ ItemView: class {}, Plugin: class {}, PluginSettingTab: class {}, Scope: MockScope })
+  });
+  vm.runInContext(source + '\nthis.View = DiaryStreamView;', ctx2);
+  const view = new ctx2.View(null, {});
+  const closed = [];
+  view.app = { scope: {}, keymap: { pushScope: (s) => pushed.push(s), popScope: (s) => popped.push(s) } };
+  view.lightbox = { isOpen: true, close() { this.isOpen = false; closed.push('lightbox'); } };
+  view.S.confirm = 'a#0';
+  view.S.menu = 'a#0';
+  view.S.sheet = 'write';
+  view.S.searchOpen = true;
+  view.composer = { dismissed: false, dismissTools() { if (this.dismissed) return false; this.dismissed = true; closed.push('tools'); return true; } };
+  view.renderConfirm = () => closed.push('renderConfirm');
+  view.renderStream = () => closed.push('renderStream');
+  view.setSheet = (v) => { view.S.sheet = v; closed.push('sheet:' + v); };
+  view.toggleSearch = (v) => { view.S.searchOpen = v; closed.push('search:' + v); };
+
+  view.syncOverlayScope();
+  assert.equal(pushed.length, 1);
+  // Trigger Escape through the registered Scope handler
+  assert.equal(pushed[0].handlers[0].cb(), false); // closes lightbox
+  assert.equal(view.handleBackAction(), true); // closes confirm
+  assert.equal(view.handleBackAction(), true); // closes menu
+  assert.equal(view.handleBackAction(), true); // dismisses composer tools
+  assert.equal(view.handleBackAction(), true); // closes write sheet
+  assert.equal(view.handleBackAction(), true); // closes mobile search
+  assert.equal(view.handleBackAction(), false); // nothing left -> hand back to Obsidian
+  view.syncOverlayScope();
+  assert.equal(popped.length, 1);
+  assert.deepEqual(closed, ['lightbox', 'renderConfirm', 'renderStream', 'tools', 'sheet:null', 'search:false']);
+});
+
+test('syncViewport detects keyboard shrink and clears mobile navbar offset', () => {
+  const props = {};
+  const classes = new Set();
+  const makeHost = () => ({
+    style: { setProperty: (k, v) => { props[k] = v; } },
+    classList: {
+      toggle: (k, on) => on ? classes.add(k) : classes.delete(k),
+      contains: (k) => classes.has(k)
+    }
+  });
+  const view = new DiaryStreamView(null, {});
+  let vvHeight = 840;
+  const doc = {
+    body: { classList: { contains: (c) => c === 'is-mobile' } },
+    querySelector: (sel) => sel === '.mobile-navbar' ? { getBoundingClientRect: () => ({ top: 766, height: 54 }) } : null,
+    defaultView: {
+      innerWidth: 390,
+      innerHeight: 840,
+      visualViewport: { get height() { return vvHeight; } },
+      getComputedStyle: () => ({ paddingBottom: '0px' })
+    }
+  };
+  view.root = Object.assign(makeHost(), { ownerDocument: doc });
+
+  // Keyboard closed: navbar clearance is calculated
+  view.syncViewport();
+  assert.equal(props['--ds-vvh'], '840px');
+  assert.equal(props['--ds-nav-bottom'], '78px');
+  assert.equal(classes.has('is-kb-open'), false);
+
+  // Keyboard opens: visualViewport shrinks to 500px
+  vvHeight = 500;
+  view.syncViewport();
+  assert.equal(props['--ds-vvh'], '500px');
+  assert.equal(props['--ds-nav-bottom'], '0px');
+  assert.equal(classes.has('is-kb-open'), true);
+});
+
+test('DiarySheetModal hosts sheet in Obsidian Modal and restores DOM + clears state on close', () => {
+  const mkEl = (tag) => {
+    const cls = new Set();
+    const listeners = {};
+    const el = {
+      tag,
+      children: [],
+      parentNode: null,
+      style: { setProperty() {}, transform: '' },
+      classList: {
+        add: (...cs) => cs.forEach((c) => cls.add(c)),
+        remove: (...cs) => cs.forEach((c) => cls.delete(c)),
+        toggle: (c, on) => on === undefined ? (cls.has(c) ? cls.delete(c) : cls.add(c)) : (on ? cls.add(c) : cls.delete(c)),
+        contains: (c) => cls.has(c)
+      },
+      appendChild(child) {
+        if (child.parentNode) child.parentNode.children = child.parentNode.children.filter((x) => x !== child);
+        child.parentNode = this;
+        this.children.push(child);
+        return child;
+      },
+      insertBefore(node, ref) {
+        if (node.parentNode) node.parentNode.children = node.parentNode.children.filter((x) => x !== node);
+        node.parentNode = this;
+        const idx = this.children.indexOf(ref);
+        if (idx >= 0) this.children.splice(idx, 0, node);
+        else this.children.push(node);
+        return node;
+      },
+      remove() {
+        if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((x) => x !== this);
+        this.parentNode = null;
+      },
+      addEventListener(ev, fn) { listeners[ev] = fn; },
+      removeEventListener(ev) { delete listeners[ev]; },
+      querySelector() { return null; },
+      contains() { return false; },
+      ownerDocument: null
+    };
+    return el;
+  };
+  const doc = {
+    createComment: (t) => mkEl('#comment:' + t),
+    activeElement: null,
+    defaultView: { requestAnimationFrame: (fn) => fn(), setTimeout: () => 1, clearTimeout() {} }
+  };
+  let lastModal = null;
+  class MockModal {
+    constructor(app) {
+      this.app = app;
+      this.containerEl = mkEl('modal-container');
+      this.modalEl = mkEl('modal');
+      this.contentEl = mkEl('modal-content');
+      this.containerEl.ownerDocument = this.modalEl.ownerDocument = this.contentEl.ownerDocument = doc;
+      this.scope = { handlers: [], register(m, k, cb) { this.handlers.push({ m, k, cb }); } };
+      lastModal = this;
+    }
+    open() { this.onOpen(); }
+    close() { this.onClose(); }
+  }
+  const ctx2 = vm.createContext({
+    module: { exports: {} },
+    require: () => ({ ItemView: class {}, Plugin: class {}, PluginSettingTab: class {}, Modal: MockModal })
+  });
+  vm.runInContext(source + '\nthis.View = DiaryStreamView;', ctx2);
+  const view = new ctx2.View(null, { data: { settings: { palette: 'coral' } } });
+  view.app = { scope: {}, keymap: { pushScope() {}, popScope() {} } };
+  const root = mkEl('root');
+  root.ownerDocument = doc;
+  root.toggleClass = (c, on) => root.classList.toggle(c, on);
+  root.classList.add('is-narrow');
+  const wrap = mkEl('wrap');
+  wrap.ownerDocument = doc;
+  const side = mkEl('aside');
+  side.ownerDocument = doc;
+  const fab = mkEl('fab');
+  fab.ownerDocument = doc;
+  wrap.appendChild(side);
+  root.appendChild(wrap);
+  root.appendChild(fab);
+  root.querySelector = (sel) => sel === '.ds-side' ? (wrap.children.includes(side) ? side : null) : sel === '.ds-fab' ? fab : null;
+  view.root = root;
+  view.syncViewport = () => {};
+  view.renderHeat = () => {};
+
+  // Open calendar sheet -> moves .ds-side into Modal, hides FAB, registers Escape
+  view.setSheet('cal');
+  assert.equal(view.S.sheet, 'cal');
+  assert.equal(side.parentNode, lastModal.contentEl);
+  assert.ok(lastModal.containerEl.classList.contains('ds-sheet-modal-wrap'));
+  assert.ok(lastModal.containerEl.classList.contains('ds-pal-coral'));
+  assert.ok(side.classList.contains('is-open'));
+  assert.ok(fab.classList.contains('is-hidden'));
+  assert.equal(lastModal.scope.handlers.length, 1);
+
+  // Trigger Escape (Android back / Esc) -> closes modal, restores .ds-side back into .ds-wrap, unhides FAB
+  assert.equal(lastModal.scope.handlers[0].cb(), false);
+  assert.equal(view.S.sheet, null);
+  assert.equal(side.parentNode, wrap);
+  assert.ok(!side.classList.contains('is-open'));
+  assert.ok(!fab.classList.contains('is-hidden'));
+});
