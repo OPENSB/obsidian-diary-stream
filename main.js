@@ -630,7 +630,7 @@ var Composer = class {
   build(init) {
     const isNew = this.mode === "new";
     this.el.innerHTML = `<div class="ds-cbox${isNew ? "" : " is-open is-edit"}${this.inline ? " ds-inline-editor" : ""}">
-      ${isNew ? `<div class="ds-sheet-write-head"><button type="button" class="ds-meta" data-a="time"></button><button type="button" class="ds-send" data-a="send" disabled>\u4FDD\u5B58</button></div>` : this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
+      ${isNew ? `<div class="ds-sheet-write-head"><button type="button" class="ds-meta" data-a="time"></button><div class="ds-write-head-right"><button type="button" class="ds-send" data-a="send" disabled>\u4FDD\u5B58</button><button type="button" class="ds-sheet-close" data-a="close"><span data-icon="x"></span><span class="ds-sr-only">\u5173\u95ED</span></button></div></div>` : this.inline ? "" : `<div class="ds-ed-head">\u7F16\u8F91 \xB7 ${esc(init.timeLabel)}</div>`}
       ${isNew ? `<div class="ds-pop ds-timepop" hidden><div class="ds-time-presets"><button type="button" class="ds-tp-chip" data-a="now">\u73B0\u5728</button><button type="button" class="ds-tp-chip" data-a="preset-yest">\u8865\u8BB0\u6628\u5929</button><button type="button" class="ds-tp-chip" data-a="preset-prev2">\u8865\u8BB0\u524D\u5929</button></div><div class="ds-time-row"><label class="ds-sr-only" for="ds-when-inp">\u5199\u5165\u65F6\u95F4</label><input id="ds-when-inp" type="datetime-local" class="ds-when"><button type="button" class="ds-buji-toggle" data-a="togglebuji">\u6807\u8BB0\u4E3A\u8865\u8BB0</button></div><div class="ds-row"><span class="ds-hint"></span></div></div>` : ""}
       <div class="ds-blocks"></div>
       ${this.inline ? '<div class="ds-edit-controls">' : ""}
@@ -1030,6 +1030,7 @@ var Composer = class {
         t.classList.toggle("is-active", !p.hidden);
         this.update();
       }
+      if (a === "close") this.host.close?.();
       if (a === "cancel") this.host.cancel?.();
       if (a === "send") void this.send();
     });
@@ -1506,12 +1507,17 @@ var DiarySheetModal = BaseModal ? class extends BaseModal {
     const { containerEl, modalEl, contentEl } = this;
     if (!containerEl || !modalEl || !contentEl) return;
     containerEl.classList.add("ds-root", "ds-scope", "ds-sheet-modal-wrap");
+    if (this.opts.modalClass) containerEl.classList.add(this.opts.modalClass);
     if (this.view.root?.classList.contains("is-narrow")) containerEl.classList.add("is-narrow");
     if (this.view.root?.classList.contains("is-compact")) containerEl.classList.add("is-compact");
     const pal = this.view.settings?.palette || "auto";
     containerEl.classList.add("ds-pal-" + pal);
     modalEl.classList.add("ds-sheet-modal");
     contentEl.classList.add("ds-sheet-modal-content");
+    containerEl.querySelectorAll?.(".modal-close-button")?.forEach((btn) => {
+      btn.hidden = true;
+      btn.style?.setProperty?.("display", "none", "important");
+    });
     this.view.syncViewport?.(containerEl);
     if (this.sheetEl && this.sheetEl.parentNode) {
       this.placeholder = this.sheetEl.ownerDocument.createComment("ds-sheet-placeholder");
@@ -1758,6 +1764,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     };
     if (DiarySheetModal && this.app && sheetEl) {
       const modal = new DiarySheetModal(this.app, this, sheetEl, {
+        modalClass: next === "write" ? "is-write-modal" : "is-bottom-modal",
         onEscape: () => {
           if (next === "write" && this.composer?.dismissTools()) return false;
           return true;
@@ -1882,6 +1889,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       tagCounts: () => this.tagCounts(),
       dayStartHour: () => this.settings.dayStartHour,
       previewFor: (st) => this.previewNew(st),
+      close: () => this.setSheet(null),
       submit: async (st) => {
         const wasBuji = this.composer?.buji;
         const r = await this.store.append(st.when || /* @__PURE__ */ new Date(), { sub: st.sub, body: st.body, tags: st.tags }, st.atts);
@@ -2053,51 +2061,86 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const box = this.root.querySelector(".ds-searchbox");
     const entry = this.root.querySelector(".ds-entry");
     const dock = this.root.querySelector(".ds-search-dock");
-    const from = box.getBoundingClientRect();
-    const fromHeight = entry.getBoundingClientRect().height;
+    const slot = this.root.querySelector(".ds-search-slot");
+    const input = this.root.querySelector(".ds-q");
+    const button = this.root.querySelector(".ds-searchbtn");
+    const win = this.root.ownerDocument.defaultView;
+    const reduced = win.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.searchAnimations.forEach((animation) => animation.cancel());
     this.searchAnimations = [];
     const motionId = ++this.searchMotionId;
     this.S.searchOpen = open;
-    const input = this.root.querySelector(".ds-q");
-    const button = this.root.querySelector(".ds-searchbtn");
-    button.disabled = open;
-    if (!open && restoreFocus) button.focus({ preventScroll: true });
-    this.root.toggleClass("is-search-open", open);
-    box.classList.toggle("is-open", open);
-    dock.hidden = !open;
-    (open ? dock : this.root.querySelector(".ds-search-slot")).appendChild(box);
-    entry.style.height = "";
-    input.disabled = !open;
-    this.root.querySelector(".ds-searchclear").disabled = !open;
-    this.root.querySelector(".ds-searchfield").setAttribute("aria-hidden", String(!open));
-    button.setAttribute("aria-expanded", String(open));
-    button.classList.toggle("is-on", open);
-    if (!open && this.S.q) {
+    if (open) {
+      const from = box.getBoundingClientRect();
+      const fromHeight = entry.getBoundingClientRect().height;
+      button.disabled = true;
+      this.root.toggleClass("is-search-open", true);
+      box.classList.add("is-open");
+      dock.hidden = false;
+      dock.appendChild(box);
+      entry.style.height = "";
+      input.disabled = false;
+      this.root.querySelector(".ds-searchclear").disabled = false;
+      this.root.querySelector(".ds-searchfield").setAttribute("aria-hidden", "false");
+      button.setAttribute("aria-expanded", "true");
+      button.classList.add("is-on");
+      input.focus({ preventScroll: true });
+      if (!reduced) {
+        const to = box.getBoundingClientRect();
+        const toHeight = entry.getBoundingClientRect().height;
+        const options = { duration: 260, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
+        entry.style.height = `${toHeight}px`;
+        const surface = box.animate([
+          { transform: `translate(${from.left - to.left}px,${from.top - to.top}px)`, width: `${from.width}px`, height: `${from.height}px`, borderRadius: "999px" },
+          { transform: "translate(0,0)", width: `${to.width}px`, height: `${to.height}px`, borderRadius: "999px" }
+        ], options);
+        const layout = entry.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], options);
+        this.searchAnimations = [surface, layout];
+        layout.onfinish = () => {
+          if (motionId !== this.searchMotionId) return;
+          entry.style.height = "";
+          this.searchAnimations = [];
+        };
+      }
+      this.syncOverlayScope();
+      return;
+    }
+    // 收起搜索：先在原位淡出并收起高度，完成后再把 36x36 搜索壳归位到顶栏，彻底避免挤压「11月 2026」闪动
+    const fromHeight = entry.getBoundingClientRect().height;
+    input.disabled = true;
+    this.root.querySelector(".ds-searchclear").disabled = true;
+    this.root.querySelector(".ds-searchfield").setAttribute("aria-hidden", "true");
+    button.setAttribute("aria-expanded", "false");
+    button.classList.remove("is-on");
+    if (this.S.q) {
       this.S.q = "";
       this.S.limit = 30;
       input.value = "";
       this.renderStream();
     }
-    if (open) input.focus({ preventScroll: true });
-    else if (restoreFocus) button.focus({ preventScroll: true });
-    const to = box.getBoundingClientRect();
-    const toHeight = entry.getBoundingClientRect().height;
-    const win = this.root.ownerDocument.defaultView;
-    if (!win.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const options = { duration: 300, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
-      entry.style.height = `${toHeight}px`;
-      const surface = box.animate([
-        { transform: `translate(${from.left - to.left}px,${from.top - to.top}px)`, width: `${from.width}px`, height: `${from.height}px`, borderRadius: open ? "999px" : "18px" },
-        { transform: "translate(0,0)", width: `${to.width}px`, height: `${to.height}px`, borderRadius: open ? "18px" : "999px" }
+    const finishClose = () => {
+      if (motionId !== this.searchMotionId) return;
+      box.classList.remove("is-open");
+      dock.hidden = true;
+      slot.appendChild(box);
+      this.root.toggleClass("is-search-open", false);
+      entry.style.height = "";
+      button.disabled = false;
+      this.searchAnimations = [];
+      if (restoreFocus) button.focus({ preventScroll: true });
+    };
+    if (reduced || fromHeight <= 0) {
+      finishClose();
+    } else {
+      const options = { duration: 180, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
+      entry.style.height = `${fromHeight}px`;
+      const fade = box.animate([
+        { opacity: 1, transform: "translateY(0)" },
+        { opacity: 0, transform: "translateY(-4px)" }
       ], options);
-      const layout = entry.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], options);
-      this.searchAnimations = [surface, layout];
-      layout.onfinish = () => {
-        if (motionId !== this.searchMotionId) return;
-        entry.style.height = "";
-        this.searchAnimations = [];
-      };
+      const collapse = entry.animate([{ height: `${fromHeight}px` }, { height: "0px" }], options);
+      this.searchAnimations = [fade, collapse];
+      collapse.onfinish = finishClose;
     }
     this.syncOverlayScope();
   }

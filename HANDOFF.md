@@ -69,4 +69,13 @@ git diff --check
   5. 移动端隐藏右下角小白色 `↑` 按钮，仅保留单个橙色写作 FAB，并支持轻点顶部「日记流」标题回到顶部。
 - **验证与状态**：`npm run check`、`npm test`（28/28）及 `390×844` 移动端仿真浏览器 QA 全部通过；已发布 `0.2.1` 供 BRAT 拉取，待用户安卓真机验收。
 
-最后提交：e7e1e2c8f5f9762a137be2414c80cfe1d9849f2c
+## 2026-11-24 0.2.2 安卓真机复测问题修复（Antigravity）
+
+- **修复内容**：
+  1. 写作弹窗（`.is-write-modal`）改为顶部悬停圆角卡片（`align-items: flex-start`，紧贴状态栏下方展开，`max-height: min(52dvh, 410px)`）并在右上角「保存」旁增加自定义圆润 `×` 按钮，彻底解决安卓软键盘不收缩视口时盖住输入框的问题；日历/筛选抽屉维持底部滑出。
+  2. 搜索未开启时隐藏 `.ds-entry` 并移除 `.ds-main` 的全局 `gap`，消除顶栏「11月 2026」与首个日期头之间 ~40px 的多余空白（降至 ~8px）。
+  3. CSS 与 `DiarySheetModal.onOpen()` 双重隐藏 Obsidian 移动端原生黑色 `.modal-close-button`（覆盖 `body.is-phone .modal-close-button { display: flex !important; }`）。
+  4. 搜索收起时先在 `.ds-search-dock` 原位淡出折叠再归位 `36×36` 搜索壳，并锁定 `.ds-search-slot` 尺寸与 `.ds-month-trigger` 不换行，修复关闭搜索时「11月 2026」闪动。
+- **验证与状态**：`npm run check`、`npm test`（28/28）及严苛移动端仿真 QA（不收缩视口 340px 键盘直盖 + 原生黑色 `×` 强覆盖）全部通过；已发布 `0.2.2` 供 BRAT 拉取，待用户真机复测。
+
+最后提交：f3668205aedde15d5798a710ddf937b4e415f5b6

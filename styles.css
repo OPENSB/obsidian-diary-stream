@@ -242,12 +242,14 @@ body .ds-scope.ds-root button:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 2px 2px 4px;
-  min-height: 38px;
+  padding: 0 2px;
+  min-height: 34px;
 }
 .ds-scope.ds-root .ds-month-trigger {
   display: inline-flex;
   align-items: baseline;
+  flex: none;
+  white-space: nowrap;
   gap: 6px;
   padding: 4px 10px 4px 4px;
   border-radius: 12px;
@@ -323,7 +325,7 @@ body .ds-scope.ds-root button:focus-visible {
 }
 
 /* ==================== 搜索框 ==================== */
-.ds-search-slot { display: flex; align-items: center; }
+.ds-search-slot { display: flex; align-items: center; width: 36px; height: 36px; flex: none; }
 .ds-searchbox {
   position: relative;
   display: flex;
@@ -376,7 +378,7 @@ body .ds-scope.ds-root button:focus-visible {
   background: transparent; color: var(--ds-muted);
 }
 .ds-scope.ds-root .ds-searchclear:hover { background: var(--ds-soft); }
-.ds-search-dock { min-width: 0; margin-bottom: 6px; }
+.ds-search-dock { min-width: 0; margin-bottom: 10px; }
 
 /* ==================== 左栏（桌面） / 时光足迹抽屉（手机） ==================== */
 .ds-side {
@@ -479,12 +481,14 @@ body .ds-scope.ds-root button:focus-visible {
 .ds-scope.ds-root .ds-chip.is-on i { color: var(--ds-on-accent); opacity: 0.78; }
 
 /* ==================== 主阅读流 + 激活筛选条 ==================== */
-.ds-main { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.ds-entry { position: relative; min-width: 0; }
+.ds-main { min-width: 0; display: flex; flex-direction: column; gap: 0; }
+.ds-entry { position: relative; min-width: 0; overflow: hidden; }
+.ds-root:not(.is-search-open) .ds-entry { display: none; }
 .ds-anchor { height: 0; }
 .ds-sticky {
   position: sticky; top: 0; z-index: 15;
   display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 8px;
 }
 .ds-root:not(.has-filters) .ds-sticky { display: none; }
 .ds-filterbar {
@@ -817,8 +821,8 @@ body .ds-scope.ds-root button:focus-visible {
   justify-content: flex-end;
   pointer-events: none;
 }
-.modal-container.ds-sheet-modal-wrap .modal-close-button {
-  display: none;
+body .modal-container.ds-sheet-modal-wrap .modal-close-button {
+  display: none !important;
 }
 .modal-container.ds-sheet-modal-wrap .ds-sheet-modal-content {
   width: 100%;
@@ -911,22 +915,44 @@ body .ds-scope.ds-root button:focus-visible {
   transition: none !important;
 }
 
-/* 写作抽屉：平滑底部滑入，弹键盘时自动收缩不顶出屏幕顶部 */
-.ds-write-sheet {
+/* 写作弹窗：顶部悬停卡片（无论安卓输入法是否上报键盘高度，输入框/标签/工具栏永远完整露在键盘上方） */
+.modal-container.ds-sheet-modal-wrap.is-write-modal {
+  align-items: flex-start;
+  padding: calc(max(env(safe-area-inset-top, 0px), 28px) + 12px) 12px 12px;
+}
+.modal-container.ds-sheet-modal-wrap.is-write-modal .modal.ds-sheet-modal,
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-modal-content {
+  justify-content: flex-start;
+}
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet {
+  border-radius: 22px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
+  padding-bottom: 0;
+  height: auto;
+  max-height: min(52dvh, 410px, calc(var(--ds-vvh, 100dvh) - max(env(safe-area-inset-top, 0px), 28px) - 24px));
+  transform: translateY(-10px) scale(0.975);
+  opacity: 0;
+  transition: transform 220ms var(--ds-ease-ios), opacity 180ms ease;
+}
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet.is-open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-handle {
+  display: none;
+}
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-write-head {
+  padding-top: 12px;
+}
+body:not(.is-mobile) .modal-container.ds-sheet-modal-wrap.is-write-modal {
+  padding-top: min(10vh, 72px);
+}
+body:not(.is-mobile) .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet {
+  max-height: min(76vh, 620px);
+}
+/* 非宿主预览兜底态 */
+.ds-root:not(.ds-sheet-modal-wrap) .ds-write-sheet {
   height: min(62dvh, 480px, calc(var(--ds-vvh, 100dvh) - max(env(safe-area-inset-top, 0px), 24px) - 24px));
-}
-.ds-root.is-kb-open .ds-write-sheet,
-.ds-sheet-modal-wrap.is-kb-open .ds-write-sheet {
-  height: auto;
-  max-height: calc(var(--ds-vvh, 100dvh) - max(env(safe-area-inset-top, 0px), 24px) - 16px);
-  padding-bottom: 0;
-}
-/* 兜底：若安卓 WebView 走 adjustPan 且未收缩 visualViewport，聚焦输入框时主动限高保住顶栏 */
-.is-mobile .ds-root:not(.is-kb-open) .ds-write-sheet.is-input-focused,
-.is-mobile .ds-sheet-modal-wrap:not(.is-kb-open) .ds-write-sheet.is-input-focused {
-  height: auto;
-  max-height: min(46dvh, 340px);
-  padding-bottom: 0;
 }
 .ds-write-sheet .ds-composer {
   flex: 1;
@@ -979,6 +1005,11 @@ body .ds-scope.ds-root button:focus-visible {
   padding: 6px 18px 12px;
   border-bottom: 1px solid var(--ds-line);
   touch-action: none;
+}
+.ds-write-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .ds-ed-head { font-size: 12px; color: var(--ds-faint); margin-bottom: 8px; }
 
@@ -1188,8 +1219,8 @@ body .ds-scope.ds-root button:focus-visible {
 /* ==================== 手机窄屏布局（is-narrow） ==================== */
 .ds-root.is-narrow .ds-wrap {
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  padding: 10px 14px 150px;
+  gap: 8px;
+  padding: 8px 14px 140px;
 }
 .ds-root.is-narrow:not(.ds-sheet-modal-wrap) .ds-side {
   position: fixed;
