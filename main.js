@@ -862,6 +862,7 @@ var Composer = class {
         this.activeBlockId = t.dataset.blockId || this.activeBlockId;
         this.activeCaret = t.selectionStart ?? t.value.length;
         this.autosize(t);
+        this.scrollCaretIntoView(t, { align: "nearest" });
       }
       if (t.classList.contains("ds-taginput")) {
         if (/[\s,，]$/.test(t.value)) this.addTag(t.value);
@@ -937,6 +938,7 @@ var Composer = class {
             last.focus({ preventScroll: true });
             const end = last.value.length;
             last.setSelectionRange?.(end, end);
+            this.scrollCaretIntoView(last, { align: "nearest" });
           }
         }
         return;
@@ -1081,12 +1083,98 @@ var Composer = class {
     w.value = d.toISOString().slice(0, 16);
   }
   autosize(only = null) {
+    const wrap = this.q?.(".ds-blocks");
+    const prevScrollTop = wrap ? wrap.scrollTop : 0;
     const list = only ? [only] : [...(this.box?.querySelectorAll("textarea.ds-body") || [])];
     for (const ta of list) {
       ta.style.height = "auto";
       const minH = ta.classList.contains("is-solo") && (this.mode === "new" || this.sheet) ? 130 : 34;
       ta.style.height = Math.max(ta.scrollHeight, minH) + "px";
     }
+    if (wrap && prevScrollTop > 0) wrap.scrollTop = prevScrollTop;
+  }
+  measureCaretY(ta, pos) {
+    const doc = ta?.ownerDocument;
+    const win = doc?.defaultView;
+    const text = ta?.value || "";
+    const idx = Math.max(0, Math.min(pos ?? ta?.selectionEnd ?? text.length, text.length));
+    const fallbackH = 28;
+    if (!doc?.body || !win?.getComputedStyle || !ta.clientWidth) {
+      const ratio = text.length ? idx / text.length : 1;
+      const totalH = ta.scrollHeight || fallbackH;
+      return { top: Math.max(0, Math.round(totalH * ratio) - fallbackH), height: fallbackH };
+    }
+    const cs = win.getComputedStyle(ta);
+    const mirror = doc.createElement("div");
+    mirror.style.position = "fixed";
+    mirror.style.top = "-9999px";
+    mirror.style.left = "-9999px";
+    mirror.style.visibility = "hidden";
+    mirror.style.pointerEvents = "none";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.wordWrap = "break-word";
+    mirror.style.overflowWrap = cs.overflowWrap || "break-word";
+    mirror.style.boxSizing = cs.boxSizing || "border-box";
+    mirror.style.width = `${ta.clientWidth}px`;
+    mirror.style.font = cs.font || "";
+    mirror.style.fontFamily = cs.fontFamily || "";
+    mirror.style.fontSize = cs.fontSize || "";
+    mirror.style.fontWeight = cs.fontWeight || "";
+    mirror.style.lineHeight = cs.lineHeight || "";
+    mirror.style.letterSpacing = cs.letterSpacing || "";
+    mirror.style.padding = cs.padding || "0";
+    mirror.style.border = cs.border || "0";
+    mirror.textContent = text.slice(0, idx);
+    const marker = doc.createElement("span");
+    marker.textContent = "\u200b";
+    mirror.appendChild(marker);
+    doc.body.appendChild(mirror);
+    const lineH = parseFloat(cs.lineHeight) || fallbackH;
+    const top = marker.offsetTop || 0;
+    const height = marker.offsetHeight || lineH;
+    mirror.remove();
+    return { top, height };
+  }
+  scrollCaretIntoView(ta = this.ta, opts = {}) {
+    const wrap = this.q?.(".ds-blocks");
+    if (!wrap || !ta) return false;
+    const viewH = wrap.clientHeight || 0;
+    const maxScroll = Math.max(0, (wrap.scrollHeight || 0) - viewH);
+    if (viewH <= 0 || maxScroll <= 0) return false;
+    const align = opts.align || "nearest";
+    const pos = opts.pos ?? ta.selectionEnd ?? ta.value.length;
+    if (align === "end" && pos >= (ta.value?.length || 0)) {
+      wrap.scrollTop = maxScroll;
+      return true;
+    }
+    const caret = this.measureCaretY(ta, pos);
+    const taRect = ta.getBoundingClientRect?.();
+    const wrapRect = wrap.getBoundingClientRect?.();
+    const taOffsetInWrap = taRect && wrapRect ? (taRect.top - wrapRect.top) + wrap.scrollTop : 0;
+    const caretY = taOffsetInWrap + caret.top;
+    const caretBottom = caretY + caret.height;
+    const viewTop = wrap.scrollTop;
+    const viewBottom = viewTop + viewH;
+    const padTop = Math.min(36, Math.round(viewH * 0.16));
+    const padBottom = Math.min(48, Math.round(viewH * 0.22));
+    let nextTop = null;
+    if (align === "end") {
+      nextTop = caretBottom - viewH + padBottom;
+    } else if (align === "center") {
+      if (caretY < viewTop + padTop || caretBottom > viewBottom - padBottom) {
+        nextTop = caretY - Math.round(viewH * 0.45);
+      }
+    } else {
+      if (caretY < viewTop + padTop) nextTop = caretY - padTop;
+      else if (caretBottom > viewBottom - padBottom) nextTop = caretBottom - viewH + padBottom;
+    }
+    if (nextTop === null) return false;
+    const clamped = Math.max(0, Math.min(maxScroll, Math.round(nextTop)));
+    if (Math.abs(clamped - wrap.scrollTop) > 1) {
+      wrap.scrollTop = clamped;
+      return true;
+    }
+    return false;
   }
   /* ---- 副标题 / 标签字段（点图标才出现） ---- */
   renderFields(keepFocus = false) {
@@ -1693,6 +1781,9 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     __publicField(this, "fabIdleTimer", 0);
     __publicField(this, "draftSaveTimer", 0);
     __publicField(this, "hasMoreDays", false);
+    __publicField(this, "lastWriteKbInset", -1);
+    __publicField(this, "lastBlocksH", 0);
+    __publicField(this, "pendingCaretAlign", null);
     __publicField(this, "onSearchOutside", (e) => {
       if (!this.S.searchOpen || this.searchModal?.open || this.S.editing || this.S.confirm || this.isSearchInteraction(e.target)) return;
       const win = this.root.ownerDocument.defaultView;
@@ -1879,6 +1970,28 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
           : 0;
         host.style.setProperty("--ds-kb-lift", `${kbLift}px`);
       }
+    }
+    if (this.S.sheet === "write" || this.S.sheet === "edit") {
+      const activeComp = this.S.sheet === "edit" ? this.editComposer : this.composer;
+      const wrap = activeComp?.q?.(".ds-blocks");
+      const blocksH = wrap?.clientHeight || 0;
+      const insetChanged = this.lastWriteKbInset >= 0 && this.lastWriteKbInset !== writeKbInset;
+      const blocksShrank = this.lastBlocksH > 0 && blocksH > 0 && this.lastBlocksH - blocksH > 20;
+      const ae = doc.activeElement;
+      const focusedTa = ae && wrap?.contains?.(ae) && ae.matches?.("textarea.ds-body") ? ae : null;
+      if (focusedTa && (insetChanged || blocksShrank || (this.pendingCaretAlign && kbOpen))) {
+        const align = this.pendingCaretAlign || "center";
+        if (kbOpen || blocksShrank) this.pendingCaretAlign = null;
+        win.requestAnimationFrame?.(() => {
+          activeComp?.scrollCaretIntoView?.(focusedTa, { align });
+        });
+      }
+      this.lastWriteKbInset = writeKbInset;
+      if (blocksH > 0) this.lastBlocksH = blocksH;
+    } else {
+      this.lastWriteKbInset = -1;
+      this.lastBlocksH = 0;
+      this.pendingCaretAlign = null;
     }
   }
   scheduleKbChecks() {
@@ -2116,6 +2229,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       }
       if (isFullWrite) {
         const activeComp = next === "edit" ? this.editComposer : this.composer;
+        this.pendingCaretAlign = "end";
         this.syncViewport();
         this.root?.ownerDocument?.defaultView?.setTimeout(() => {
           if (this.S.sheet !== next) return;
@@ -2125,6 +2239,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
             ta.focus({ preventScroll: true });
             const end = ta.value.length;
             ta.setSelectionRange?.(end, end);
+            activeComp?.scrollCaretIntoView?.(ta, { align: "end", pos: end });
           }
           this.scheduleKbChecks();
         }, 220);
@@ -2311,8 +2426,20 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         const win = this.root?.ownerDocument?.defaultView;
         win?.clearTimeout(this.focusOutTimer);
         sheet.classList.add("is-input-focused");
+        if (e.target.matches("textarea.ds-body") && !this.pendingCaretAlign) {
+          this.pendingCaretAlign = "center";
+        }
         this.syncViewport();
         this.scheduleKbChecks();
+        if (e.target.matches("textarea.ds-body") && win) {
+          const ta = e.target;
+          const activeComp = sheet.classList.contains("ds-edit-sheet") ? this.editComposer : this.composer;
+          win.setTimeout(() => {
+            if (this.root?.ownerDocument?.activeElement === ta) {
+              activeComp?.scrollCaretIntoView?.(ta, { align: this.pendingCaretAlign || "center" });
+            }
+          }, 260);
+        }
       });
       sheet.addEventListener("focusout", () => {
         const win = this.root?.ownerDocument?.defaultView;

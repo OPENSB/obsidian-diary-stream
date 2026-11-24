@@ -662,3 +662,55 @@ test('mobile edit sheet shares full-screen keyboard CSS and keeps background car
   assert.ok(!html.includes('ds-edhost'), 'background card stays rendered normally while mobile edit sheet is open');
   assert.ok(html.includes('原正文'));
 });
+
+test('desktop sidebar scrolls independently and desktop wide view hides narrow-only filter/drawer chrome', () => {
+  const css = readFileSync(join(__dirname, '..', 'styles.css'), 'utf8');
+  assert.match(css, /\.ds-root:not\(\.is-narrow\)\s+\.ds-only-narrow\s*\{\s*display:\s*none\s*!important/);
+  assert.match(css, /\.ds-root:not\(\.is-narrow\)\s+\.ds-side\s*\{[\s\S]*max-height:[\s\S]*overflow-y:\s*auto/);
+});
+
+test('Composer autosize preserves scrollTop and scrollCaretIntoView positions end, middle, and typing carets accurately', () => {
+  const wrap = { scrollTop: 420, clientHeight: 340, scrollHeight: 1400, getBoundingClientRect: () => ({ top: 80 }) };
+  const ta = {
+    value: 'a'.repeat(1000),
+    selectionEnd: 1000,
+    scrollHeight: 1360,
+    clientWidth: 0,
+    style: { height: '1360px' },
+    classList: { contains: () => true },
+    getBoundingClientRect: () => ({ top: 80 - wrap.scrollTop })
+  };
+  const c = Object.create(Composer.prototype);
+  c.mode = 'edit';
+  c.sheet = true;
+  c.ta = ta;
+  c.q = (sel) => sel === '.ds-blocks' ? wrap : null;
+  c.box = { querySelectorAll: () => [ta] };
+
+  // 1. autosize must NOT reset .ds-blocks.scrollTop back to 0 when setting height = auto
+  c.autosize(ta);
+  assert.equal(wrap.scrollTop, 420);
+
+  // 2. Opening long diary edit (align: 'end') scrolls straight to the bottom
+  wrap.scrollTop = 0;
+  c.scrollCaretIntoView(ta, { align: 'end', pos: 1000 });
+  assert.equal(wrap.scrollTop, 1060);
+
+  // 3. Tapping middle of long text (caret at ~680px) then keyboard shrinks viewport -> centers caret in view
+  wrap.scrollTop = 0;
+  ta.selectionEnd = 500;
+  c.measureCaretY = () => ({ top: 680, height: 28 });
+  c.scrollCaretIntoView(ta, { align: 'center', pos: 500 });
+  // 680 - Math.round(340 * 0.45) = 680 - 153 = 527
+  assert.equal(wrap.scrollTop, 527);
+
+  // 4. Calling center again when caret is already comfortably inside band -> no unnecessary scroll jump
+  const moved = c.scrollCaretIntoView(ta, { align: 'center', pos: 500 });
+  assert.equal(moved, false);
+  assert.equal(wrap.scrollTop, 527);
+
+  // 5. Typing below visible bottom (align: 'nearest') scrolls down just enough to show caret + bottom padding
+  c.measureCaretY = () => ({ top: 900, height: 28 });
+  c.scrollCaretIntoView(ta, { align: 'nearest', pos: 750 });
+  assert.ok(wrap.scrollTop > 527 && wrap.scrollTop <= 1060);
+});

@@ -109,4 +109,11 @@ git diff --check
   6. **自动续加载 + FAB 阅读避让 + 微字数**：触底 360px 自动续加载更早 30 天；下滑阅读时 FAB 半透明轻缩避让文字，上滑或停顿约 0.9s 恢复；写作/编辑页底栏预览图标旁新增淡色实时字数（0 字时隐藏）。
 - **验证与状态**：`npm run check`、`npm test`（35/35）与 `git diff --check` 通过；已发布 `0.2.5` 供 BRAT 拉取，待用户手机真机实测。
 
-最后提交：f4361ce98facb21f4367699a77942e8078ce12e8
+## 2026-11-24 0.2.6 桌面左栏滚动收口与手机长文光标定位修复（Antigravity）
+
+- **改动内容**：
+  1. **桌面端左栏独立滚动与入口收口**：提高 `.ds-root:not(.is-narrow) .ds-only-narrow { display: none !important; }` 权重，桌面宽屏彻底隐藏右上角重复筛选按钮与左栏顶上多余的「时光足迹 `×`」；宽屏 `.ds-side` 增加 `max-height: calc(var(--ds-vvh, 100vh) - 116px)` 与 `overflow-y: auto; overscroll-behavior: contain;`，修复标签区被吸顶截断无法下滑的问题；桌面右下角 FAB 上移至 `bottom: 38px` 避开底部状态栏。
+  2. **手机端长文编辑光标与滚动定位**：修复 `Composer.autosize()` 临时置 `height: auto` 导致 `.ds-blocks.scrollTop` 被重置回顶部的缺陷；新增 `measureCaretY()` 镜像测量与 `scrollCaretIntoView()`，打开长日记「编辑」或已有长草稿时自动定位并滚到底部末尾，关键盘重点击长文中间再弹起键盘时自动检测视口收缩并将光标行居中到可视区，持续打字/语音输入时自动跟随滚动。
+- **验证与状态**：`npm run check`、`npm test`（37/37）、`git diff --check` 与无新增 tooltip 扫描通过；已发布 `0.2.6` 供 BRAT 拉取，待用户桌面与手机真机复测。
+
+最后提交：6689880d93e0ec93ace97be0bf0cd56067760efd

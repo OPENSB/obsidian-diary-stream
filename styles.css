@@ -214,8 +214,9 @@ body .ds-scope.ds-root button:focus-visible {
 }
 .ds-sp { flex: 1; }
 .ds-only-narrow { display: none; }
+.ds-root:not(.is-narrow) .ds-only-narrow { display: none !important; }
 .ds-root.is-narrow .ds-only-narrow { display: flex; }
-.ds-root.is-narrow .ds-only-wide { display: none; }
+.ds-root.is-narrow .ds-only-wide { display: none !important; }
 
 /* ==================== 主体网格（不在 .ds-wrap 上设 transform，避免破坏 fixed 包含块） ==================== */
 .ds-wrap {
@@ -397,6 +398,20 @@ body .ds-scope.ds-root button:focus-visible {
   position: sticky;
   top: 64px;
 }
+.ds-root:not(.is-narrow) .ds-side {
+  max-height: calc(var(--ds-vvh, 100vh) - 116px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px 2px 18px;
+  margin: -2px -2px 0;
+}
+.ds-root:not(.is-narrow) .ds-side::-webkit-scrollbar { width: 5px; }
+.ds-root:not(.is-narrow) .ds-side::-webkit-scrollbar-thumb {
+  background: var(--ds-line-strong);
+  border-radius: 999px;
+}
+.ds-root:not(.is-narrow) .ds-side::-webkit-scrollbar-track { background: transparent; }
 .ds-side-body {
   display: flex;
   flex-direction: column;
@@ -770,7 +785,7 @@ body .ds-scope.ds-root button:focus-visible {
 .ds-scope.ds-root .ds-fab {
   position: fixed;
   right: 22px;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(38px + env(safe-area-inset-bottom, 0px));
   z-index: 35;
   width: 54px;
   height: 54px;
