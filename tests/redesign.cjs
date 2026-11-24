@@ -10,10 +10,10 @@ const context = vm.createContext({
   require: () => ({ ItemView: class {}, Plugin: class {}, PluginSettingTab: class {} })
 });
 vm.runInContext(
-  source + '\nthis.api = { resolveInlineImages, extractCardImages, PALETTES, DEFAULT_SETTINGS, Composer, DiaryStreamView, parseDay, planAppend, entryTime };',
+  source + '\nthis.api = { resolveInlineImages, extractCardImages, sectionCopyText, countDiaryChars, PALETTES, DEFAULT_SETTINGS, Composer, DiaryStreamView, parseDay, planAppend, entryTime };',
   context
 );
-const { resolveInlineImages, extractCardImages, PALETTES, DEFAULT_SETTINGS, Composer, DiaryStreamView, parseDay, planAppend, entryTime } = context.api;
+const { resolveInlineImages, extractCardImages, sectionCopyText, countDiaryChars, PALETTES, DEFAULT_SETTINGS, Composer, DiaryStreamView, parseDay, planAppend, entryTime } = context.api;
 
 test('resolveInlineImages places inline images between paragraphs and appends voice notes at end', () => {
   const body = '第一段文字\n\n[[DS_IMG:img_2]]\n\n第二段文字\n\n[[DS_IMG:img_3]]\n\n第三段文字';
@@ -418,4 +418,247 @@ test('DiarySheetModal hosts sheet in Obsidian Modal and restores DOM + clears st
   assert.equal(side.parentNode, wrap);
   assert.ok(!side.classList.contains('is-open'));
   assert.ok(!fab.classList.contains('is-hidden'));
+});
+
+test('card menu includes copy button, sectionCopyText formats clean text, and expand button is arrow-only', () => {
+  assert.equal(sectionCopyText({ sub: '', buji: false, content: '第一段\n\n第二段', raw: '' }), '第一段\n\n第二段');
+  assert.equal(sectionCopyText({ sub: '看电影', buji: false, content: '东京奏鸣曲很震撼', raw: '' }), '看电影\n\n东京奏鸣曲很震撼');
+  assert.equal(sectionCopyText({ sub: '补记 · 昨天散步', buji: true, content: '走了五公里', raw: '' }), '昨天散步\n\n走了五公里');
+  assert.equal(sectionCopyText({ sub: '补记', buji: true, content: '补一条', raw: '' }), '补一条');
+
+  const view = new DiaryStreamView(null, { data: { settings: { dayStartHour: 4 } } });
+  view.plugin.store = { resolve: () => null };
+  const s = {
+    idx: 0,
+    date: '2026-11-24',
+    path: '日记/2026-11-24.md',
+    time: '19:08',
+    sub: '',
+    content: '长日记正文'.repeat(50),
+    text: '长日记正文'.repeat(50),
+    tagLine: ['生活'],
+    tags: ['生活'],
+    late: false,
+    buji: false,
+    hasImg: false,
+    hasVoice: false
+  };
+  view.S.menu = '日记/2026-11-24.md#0';
+  const html = view.card(s);
+  assert.match(html, /data-copykey="日记\/2026-11-24\.md#0"[^>]*><span data-icon="copy"><\/span>复制<\/button>/);
+  assert.match(html, /class="ds-more"[^>]*aria-expanded="false"><span class="ds-more-ic" data-icon="chevron-down"><\/span><span class="ds-sr-only ds-more-sr">展开<\/span><\/button>/);
+  assert.ok(!html.includes('ds-more-txt'), 'expand button should not render visible 展开 text');
+});
+
+test('dayHeadHtml omits redundant month and syncVisibleMonth updates sticky top bar on scroll', () => {
+  const css = readFileSync(join(__dirname, '..', 'styles.css'), 'utf8');
+  assert.match(css, /\.ds-mhead\s*\{[\s\S]*position:\s*sticky;[\s\S]*top:\s*0;/);
+
+  const view = new DiaryStreamView(null, { data: { settings: { dayStartHour: 4 } } });
+  const hToday = view.dayHeadHtml({ date: '2026-11-24', sections: [{}] }, '2026-11-24');
+  assert.ok(hToday.includes('>24<'));
+  assert.ok(hToday.includes('星期二'));
+  assert.ok(hToday.includes('今天'));
+  assert.ok(!hToday.includes('11月'), 'day header should not repeat month');
+
+  const hOther = view.dayHeadHtml({ date: '2026-11-23', sections: [{}] }, '2026-11-24');
+  assert.ok(hOther.includes('>23<'));
+  assert.ok(hOther.includes('星期一'));
+  assert.ok(!hOther.includes('11月'), 'day header should not repeat month');
+
+  const mt = { textContent: '' };
+  const ms = { textContent: '' };
+  let tops = [60, 420, 900];
+  const dayEls = [
+    { dataset: { date: '2026-11-24' }, getBoundingClientRect: () => ({ top: tops[0] }) },
+    { dataset: { date: '2026-10-31' }, getBoundingClientRect: () => ({ top: tops[1] }) },
+    { dataset: { date: '2025-12-30' }, getBoundingClientRect: () => ({ top: tops[2] }) }
+  ];
+  view.root = {
+    querySelector: (sel) => sel === '.ds-month-title' ? mt
+      : sel === '.ds-month-sub' ? ms
+      : sel === '.ds-mhead' ? { getBoundingClientRect: () => ({ bottom: 48, height: 48 }) }
+      : null,
+    querySelectorAll: (sel) => sel === '.ds-stream > .ds-day[data-date]' ? dayEls : []
+  };
+
+  // At top -> November 2026
+  view.syncVisibleMonth();
+  assert.equal(mt.textContent, '11月');
+  assert.equal(ms.textContent, '2026');
+  assert.equal(view.visibleMonth, '2026-11');
+
+  // Scrolled into October 2026
+  tops = [-320, 40, 520];
+  view.syncVisibleMonth();
+  assert.equal(mt.textContent, '10月');
+  assert.equal(ms.textContent, '2026');
+  assert.equal(view.visibleMonth, '2026-10');
+
+  // Scrolled into December 2025
+  tops = [-820, -460, 20];
+  view.syncVisibleMonth();
+  assert.equal(mt.textContent, '12月');
+  assert.equal(ms.textContent, '2025');
+  assert.equal(view.visibleMonth, '2025-12');
+});
+
+test('countDiaryChars ignores whitespace and inline image tokens, and draft persists per vault with FAB indicator', () => {
+  assert.equal(countDiaryChars(''), 0);
+  assert.equal(countDiaryChars('今天  心情\n不错\n\n[[DS_IMG:img_2]]'), 6);
+
+  const storage = new Map();
+  const fabCls = new Set();
+  const fab = { classList: { toggle: (c, on) => on ? fabCls.add(c) : fabCls.delete(c), contains: (c) => fabCls.has(c) } };
+  const view = new DiaryStreamView(null, {});
+  view.app = { vault: { getName: () => '我的日记库' } };
+  view.root = {
+    querySelector: (sel) => sel === '.ds-fab' ? fab : null,
+    ownerDocument: {
+      defaultView: {
+        localStorage: {
+          getItem: (k) => storage.has(k) ? storage.get(k) : null,
+          setItem: (k, v) => storage.set(k, v),
+          removeItem: (k) => storage.delete(k)
+        },
+        setTimeout: () => 1,
+        clearTimeout() {}
+      }
+    }
+  };
+  let restored = null;
+  let draftState = { body: '半篇草稿', sub: '副标题', tags: ['生活'], when: null, buji: false };
+  view.composer = {
+    empty: () => !draftState,
+    exportDraft: () => draftState,
+    restoreDraft: (d) => { restored = d; draftState = d; return true; }
+  };
+
+  view.saveDraft();
+  view.syncDraftIndicator();
+  assert.ok(storage.has('ds-draft:我的日记库'));
+  assert.equal(fabCls.has('has-draft'), true);
+
+  draftState = null;
+  assert.equal(view.loadDraft(), true);
+  assert.equal(restored.body, '半篇草稿');
+  assert.equal(fabCls.has('has-draft'), true);
+
+  draftState = null;
+  view.clearDraft();
+  assert.equal(storage.has('ds-draft:我的日记库'), false);
+  assert.equal(fabCls.has('has-draft'), false);
+});
+
+test('tapping clamped card body expands without collapsing on second tap or breaking text selection', async () => {
+  let selectionCollapsed = false;
+  const expandedCalls = [];
+  const view = new DiaryStreamView(null, {});
+  view.root = {
+    ownerDocument: {
+      defaultView: {
+        getSelection: () => ({ isCollapsed: selectionCollapsed })
+      }
+    }
+  };
+  view.toggleCardExpand = (card, forceOpen) => expandedCalls.push({ card, forceOpen });
+  const fakeCard = { id: 'card-1' };
+  const clampedWrap = { closest: (sel) => sel === '.ds-card' ? fakeCard : null };
+  const makeTarget = () => ({
+    closest: (sel) => {
+      if (sel === '.ds-body-wrap.is-clamped') return clampedWrap;
+      return null;
+    }
+  });
+
+  // Active non-collapsed text selection -> must NOT trigger expand
+  await view.onClick({ target: makeTarget() });
+  assert.equal(expandedCalls.length, 0);
+
+  // Collapsed selection (plain tap) -> expands with forceOpen = true (never collapses)
+  selectionCollapsed = true;
+  await view.onClick({ target: makeTarget() });
+  assert.deepEqual(expandedCalls, [{ card: fakeCard, forceOpen: true }]);
+});
+
+test('FAB dims while scrolling down and restores on scroll up or idle; maybeLoadMore auto-extends near bottom', () => {
+  const fabCls = new Set();
+  const fab = {
+    classList: {
+      add: (c) => fabCls.add(c),
+      remove: (c) => fabCls.delete(c),
+      contains: (c) => fabCls.has(c)
+    }
+  };
+  let idleCb = null;
+  const view = new DiaryStreamView(null, {});
+  view.root = {
+    querySelector: (sel) => sel === '.ds-fab' ? fab : null,
+    ownerDocument: {
+      defaultView: {
+        setTimeout: (fn) => { idleCb = fn; return 42; },
+        clearTimeout() { idleCb = null; }
+      }
+    }
+  };
+
+  // Scroll down -> dims FAB
+  view.syncFabScroll(120, 25);
+  assert.equal(fabCls.has('is-reading'), true);
+  assert.equal(typeof idleCb, 'function');
+
+  // Idle timeout fires -> restores FAB
+  idleCb();
+  assert.equal(fabCls.has('is-reading'), false);
+
+  // Scroll down again then scroll up -> immediately restores FAB
+  view.syncFabScroll(200, 30);
+  assert.equal(fabCls.has('is-reading'), true);
+  view.syncFabScroll(180, -20);
+  assert.equal(fabCls.has('is-reading'), false);
+
+  // Auto-load more when near bottom
+  let rendered = 0;
+  view.hasMoreDays = true;
+  view.contentEl = { scrollTop: 700, clientHeight: 500, scrollHeight: 1400 };
+  view.renderStream = () => { rendered++; };
+  view.maybeLoadMore();
+  assert.equal(view.S.limit, 60);
+  assert.equal(rendered, 1);
+
+  // Does not auto-load while card menu is open
+  view.S.menu = 'a#0';
+  view.maybeLoadMore();
+  assert.equal(view.S.limit, 60);
+});
+
+test('mobile edit sheet shares full-screen keyboard CSS and keeps background card intact while editing', () => {
+  const css = readFileSync(join(__dirname, '..', 'styles.css'), 'utf8');
+  assert.match(css, /\.ds-edit-sheet[\s\S]*padding-bottom:\s*var\(--ds-write-kb-inset/);
+  assert.match(css, /\.ds-fab\.is-reading:not\(\.is-hidden\)/);
+  assert.match(css, /\.ds-fab\.has-draft::after/);
+  assert.match(css, /\.ds-wc\s*\{/);
+
+  const view = new DiaryStreamView(null, { data: { settings: { dayStartHour: 4 } } });
+  view.plugin.store = { resolve: () => null };
+  const s = {
+    idx: 0,
+    date: '2026-11-24',
+    path: '日记/2026-11-24.md',
+    time: '19:08',
+    sub: '',
+    content: '原正文',
+    text: '原正文',
+    tagLine: [],
+    tags: [],
+    late: false,
+    buji: false,
+    hasImg: false,
+    hasVoice: false
+  };
+  view.S.editing = '日记/2026-11-24.md#0';
+  view.S.sheet = 'edit';
+  const html = view.card(s);
+  assert.ok(!html.includes('ds-edhost'), 'background card stays rendered normally while mobile edit sheet is open');
+  assert.ok(html.includes('原正文'));
 });

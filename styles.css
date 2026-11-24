@@ -221,10 +221,10 @@ body .ds-scope.ds-root button:focus-visible {
 .ds-wrap {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 20px 24px 120px;
+  padding: 6px 24px 120px;
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
-  gap: 18px 28px;
+  gap: 14px 28px;
   align-items: start;
 }
 .ds-root:not(.is-narrow).is-side-collapsed .ds-wrap {
@@ -235,15 +235,27 @@ body .ds-scope.ds-root button:focus-visible {
   display: none;
 }
 
-/* ==================== 极简呼吸感顶栏 ==================== */
+/* ==================== 吸顶呼吸感顶栏（随滚动自动更新年月） ==================== */
 .ds-mhead {
   grid-column: 1 / -1;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 2px;
-  min-height: 34px;
+  margin: 0 -24px;
+  padding: 8px 26px;
+  min-height: 48px;
+  background: color-mix(in srgb, var(--ds-page) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 180ms ease;
+}
+.ds-root.is-stuck .ds-mhead {
+  border-bottom-color: var(--ds-line);
 }
 .ds-scope.ds-root .ds-month-trigger {
   display: inline-flex;
@@ -383,7 +395,7 @@ body .ds-scope.ds-root button:focus-visible {
 /* ==================== 左栏（桌面） / 时光足迹抽屉（手机） ==================== */
 .ds-side {
   position: sticky;
-  top: 18px;
+  top: 64px;
 }
 .ds-side-body {
   display: flex;
@@ -486,7 +498,7 @@ body .ds-scope.ds-root button:focus-visible {
 .ds-root:not(.is-search-open) .ds-entry { display: none; }
 .ds-anchor { height: 0; }
 .ds-sticky {
-  position: sticky; top: 0; z-index: 15;
+  position: sticky; top: 52px; z-index: 15;
   display: flex; flex-direction: column; gap: 8px;
   margin-bottom: 8px;
 }
@@ -510,29 +522,25 @@ body .ds-scope.ds-root button:focus-visible {
 }
 .ds-scope.ds-root .ds-filterbar button:hover { background: var(--ds-accent-soft); }
 
-/* ==================== 章节式大日期 + 柔雾软卡 ==================== */
-.ds-stream, .ds-search-snapshot { display: flex; flex-direction: column; gap: 26px; }
+/* ==================== 紧凑单行日期头 + 柔雾软卡 ==================== */
+.ds-stream, .ds-search-snapshot { display: flex; flex-direction: column; gap: 16px; }
 .ds-search-snapshot { pointer-events: none; }
-.ds-day { display: flex; flex-direction: column; gap: 12px; }
+.ds-day { display: flex; flex-direction: column; gap: 8px; }
 .ds-day-head {
-  display: flex; align-items: flex-end; gap: 11px; padding: 2px 6px 2px;
+  display: flex; align-items: baseline; gap: 8px; padding: 2px 4px 0;
 }
 .ds-day-num {
   font-family: var(--ds-display);
-  font-size: 32px; line-height: 0.94; font-weight: 700;
+  font-size: 26px; line-height: 1; font-weight: 700;
   letter-spacing: -0.03em; color: var(--ds-ink); font-variant-numeric: tabular-nums;
 }
-.ds-day-meta { display: flex; flex-direction: column; gap: 2px; padding-bottom: 1px; }
-.ds-day-sub {
-  font-size: 13px; font-weight: 600; color: var(--ds-ink);
-  display: flex; align-items: center; gap: 6px;
-}
 .ds-today-dot {
+  align-self: center;
   font-size: 10.5px; font-weight: 600; color: var(--ds-accent);
   background: var(--ds-accent-soft); padding: 1px 7px; border-radius: 999px;
 }
-.ds-wd { font-weight: 400; color: var(--ds-faint); font-size: 12px; }
-.ds-day-right { margin-left: auto; display: flex; align-items: center; gap: 8px; padding-bottom: 2px; }
+.ds-wd { font-weight: 500; color: var(--ds-faint); font-size: 12.5px; }
+.ds-day-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .ds-dcount { font-weight: 400; color: var(--ds-faint); font-size: 11.5px; }
 .ds-scope.ds-root .ds-day-buji {
   display: inline-flex; align-items: center; justify-content: center;
@@ -624,6 +632,7 @@ body .ds-scope.ds-root button:focus-visible {
   overflow: hidden;
   transition: max-height 300ms var(--ds-ease-ios);
 }
+.ds-body-wrap.is-clamped { cursor: pointer; }
 .ds-body-wrap.is-clamped::after {
   content: "";
   position: absolute;
@@ -737,16 +746,17 @@ body .ds-scope.ds-root button:focus-visible {
 
 .ds-scope.ds-root .ds-more {
   margin-left: auto;
-  display: inline-flex; align-items: center; gap: 3px;
-  height: 26px; padding: 0 10px 0 11px; border-radius: 999px;
-  background: var(--ds-accent-soft); color: var(--ds-accent);
-  font-size: 12px; font-weight: 600; flex: none;
-  transition: background 150ms, transform 120ms;
+  display: inline-grid; place-items: center;
+  width: 28px; height: 28px; padding: 0; border-radius: 999px;
+  background: var(--ds-soft); color: var(--ds-muted);
+  flex: none;
+  transition: background 150ms, color 150ms, transform 120ms;
 }
-.ds-scope.ds-root .ds-more:hover { background: color-mix(in srgb, var(--ds-accent) 18%, transparent); }
-.ds-scope.ds-root .ds-more:active { transform: scale(0.94); }
+.ds-scope.ds-root .ds-more:hover { background: var(--ds-soft-2); color: var(--ds-ink); }
+.ds-scope.ds-root .ds-more:active { transform: scale(0.92); }
+.ds-scope.ds-root .ds-more.is-open { background: var(--ds-accent-soft); color: var(--ds-accent); }
 .ds-more-ic { display: inline-flex; transition: transform 260ms var(--ds-ease-ios); }
-.ds-more-ic svg.svg-icon { width: 13px; height: 13px; }
+.ds-more-ic svg.svg-icon { width: 15px; height: 15px; }
 .ds-more.is-open .ds-more-ic { transform: rotate(180deg); }
 
 .ds-empty { text-align: center; color: var(--ds-faint); padding: 64px 16px; font-size: 14px; line-height: 1.8; }
@@ -782,6 +792,21 @@ body .ds-scope.ds-root button:focus-visible {
   opacity: 0;
   transform: scale(0.84);
   pointer-events: none;
+}
+.ds-scope.ds-root .ds-fab.is-reading:not(.is-hidden) {
+  opacity: 0.34;
+  transform: scale(0.86);
+}
+.ds-scope.ds-root .ds-fab.has-draft::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ds-late);
+  box-shadow: 0 0 0 2px var(--ds-card);
 }
 /* 避让 Obsidian 手机端底部原生导航栏 */
 .is-mobile .ds-scope.ds-root .ds-fab {
@@ -928,7 +953,8 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
 .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-sheet-modal-content {
   justify-content: flex-start;
 }
-.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet {
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet,
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-edit-sheet {
   border-radius: 22px;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);
   padding-bottom: 0;
@@ -938,7 +964,8 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   opacity: 0;
   transition: transform 220ms var(--ds-ease-ios), opacity 180ms ease;
 }
-.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet.is-open {
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet.is-open,
+.modal-container.ds-sheet-modal-wrap.is-write-modal .ds-edit-sheet.is-open {
   transform: none;
   opacity: 1;
 }
@@ -992,7 +1019,9 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   justify-content: flex-start !important;
 }
 .is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-write-sheet,
-.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-write-sheet {
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-write-sheet,
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-edit-sheet,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-edit-sheet {
   width: 100%;
   height: 100%;
   max-height: 100%;
@@ -1033,10 +1062,12 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
 }
 
 /* 非宿主预览兜底态 */
-.ds-root:not(.ds-sheet-modal-wrap) .ds-write-sheet {
+.ds-root:not(.ds-sheet-modal-wrap) .ds-write-sheet,
+.ds-root:not(.ds-sheet-modal-wrap) .ds-edit-sheet {
   height: min(62dvh, 480px, calc(var(--ds-vvh, 100dvh) - max(env(safe-area-inset-top, 0px), 24px) - 24px));
 }
-.ds-write-sheet .ds-composer {
+.ds-write-sheet .ds-composer,
+.ds-edit-sheet .ds-edit-composer {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1117,7 +1148,8 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   border: 0; box-shadow: none;
   transition: background 140ms, color 140ms;
 }
-.ds-scope.ds-root .ds-meta:hover { background: var(--ds-soft-2); color: var(--ds-ink); }
+.ds-scope.ds-root .ds-meta:not(.ds-meta-static):hover { background: var(--ds-soft-2); color: var(--ds-ink); }
+.ds-scope.ds-root .ds-meta.ds-meta-static { cursor: default; }
 .ds-scope.ds-root .ds-meta.is-late { background: var(--ds-late-soft); color: var(--ds-late); font-weight: 600; }
 .ds-meta svg.svg-icon { width: 13px; height: 13px; }
 
@@ -1162,7 +1194,7 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   gap: 10px;
   padding: 14px 20px 14px;
 }
-.ds-cbox.is-edit .ds-blocks { padding: 4px 0 8px; overflow: visible; min-height: 0; }
+.ds-cbox.is-edit:not(.is-sheet-edit) .ds-blocks { padding: 4px 0 8px; overflow: visible; min-height: 0; }
 .ds-scope.ds-root textarea.ds-body {
   flex: none;
   display: block;
@@ -1203,7 +1235,7 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
 
 .ds-att { flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 8px; }
 .ds-att:empty { display: none; }
-.ds-cbox.is-edit .ds-att { padding: 4px 0 8px; }
+.ds-cbox.is-edit:not(.is-sheet-edit) .ds-att { padding: 4px 0 8px; }
 .ds-a { position: relative; border-radius: 12px; overflow: hidden; background: var(--ds-soft); flex: none; }
 .ds-a-voice { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 32px 0 6px; font-size: 12.5px; color: var(--ds-muted); }
 .ds-scope.ds-root .ds-aplay { width: 24px; height: 24px; padding: 0; display: grid; place-items: center; color: var(--ds-ink); }
@@ -1212,7 +1244,7 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
 
 .ds-fields { flex: none; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 0 20px 8px; position: relative; }
 .ds-fields:empty { display: none; }
-.ds-cbox.is-edit .ds-fields { padding: 4px 0 8px; }
+.ds-cbox.is-edit:not(.is-sheet-edit) .ds-fields { padding: 4px 0 8px; }
 .ds-fld { display: inline-flex; align-items: center; gap: 6px; background: var(--ds-soft); border-radius: 10px; padding: 0 5px 0 10px; min-height: 30px; max-width: 100%; }
 .ds-fld .ds-lbl { color: var(--ds-faint); display: grid; place-items: center; }
 .ds-fld .ds-lbl svg.svg-icon { width: 14px; height: 14px; }
@@ -1268,7 +1300,16 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   display: flex; align-items: center; gap: 4px; min-width: 0;
   padding: 8px 14px 12px; border-top: 1px solid var(--ds-line);
 }
-.ds-cbox.is-edit .ds-bar { padding: 8px 0 0; }
+.ds-cbox.is-edit:not(.is-sheet-edit) .ds-bar { padding: 8px 0 0; }
+.ds-wc {
+  font-size: 11.5px;
+  color: var(--ds-faint);
+  font-variant-numeric: tabular-nums;
+  padding: 0 6px;
+  white-space: nowrap;
+  flex: none;
+  user-select: none;
+}
 .ds-scope.ds-root .ds-ib {
   height: 34px; min-width: 34px; padding: 0 9px; border-radius: 10px;
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
@@ -1306,7 +1347,7 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   flex: none; margin: 0 16px 12px; background: var(--ds-soft);
   border-radius: 12px; padding: 10px 12px; font-size: 12px;
 }
-.ds-cbox.is-edit .ds-preview { margin: 10px 0 0; }
+.ds-cbox.is-edit:not(.is-sheet-edit) .ds-preview { margin: 10px 0 0; }
 .ds-pv-h { color: var(--ds-muted); margin-bottom: 6px; }
 .ds-pv-h b { color: var(--ds-ink); font-family: var(--font-monospace); font-size: 11.5px; overflow-wrap: anywhere; }
 .ds-preview pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--font-monospace); line-height: 1.6; max-height: 180px; overflow: auto; color: var(--ds-muted); }
@@ -1315,8 +1356,19 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
 /* ==================== 手机窄屏布局（is-narrow） ==================== */
 .ds-root.is-narrow .ds-wrap {
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px 14px 140px;
+  gap: 6px;
+  padding: 0 14px 140px;
+}
+.ds-root.is-narrow .ds-mhead {
+  margin: 0 -14px;
+  padding: 6px 16px;
+  min-height: 44px;
+}
+.ds-root.is-narrow .ds-sticky {
+  top: 44px;
+}
+.ds-root.is-narrow .ds-stream {
+  gap: 14px;
 }
 .ds-root.is-narrow:not(.ds-sheet-modal-wrap) .ds-side {
   position: fixed;
@@ -1364,7 +1416,7 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   padding-top: 14px;
   border-top: 1px solid var(--ds-line);
 }
-.ds-root.is-narrow .ds-card { padding: 16px 17px 17px; }
+.ds-root.is-narrow .ds-card { padding: 15px 17px 15px; }
 .ds-root.is-narrow .ds-vbar { width: 64px; }
 
 /* ==================== 回到顶部（仅桌面端） / Toast / 确认框 ==================== */
