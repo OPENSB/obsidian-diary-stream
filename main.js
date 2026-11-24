@@ -915,7 +915,18 @@ var Composer = class {
     });
     b.addEventListener("click", (e) => {
       const t = e.target.closest("[data-a]");
-      if (!t) return;
+      if (!t) {
+        if (e.target.classList?.contains("ds-blocks")) {
+          const tas = [...b.querySelectorAll("textarea.ds-body")];
+          const last = tas[tas.length - 1] || this.ta;
+          if (last) {
+            last.focus({ preventScroll: true });
+            const end = last.value.length;
+            last.setSelectionRange?.(end, end);
+          }
+        }
+        return;
+      }
       const a = t.dataset.a;
       if (a === "sub") {
         if (this.inline && this.subOpen) {
@@ -1545,6 +1556,7 @@ var DiarySheetModal = BaseModal ? class extends BaseModal {
       });
     };
     hideNativeChrome();
+    this.view.syncKbObservers?.(true);
     this.view.syncViewport?.(containerEl);
     if (this.sheetEl && this.sheetEl.parentNode) {
       this.placeholder = this.sheetEl.ownerDocument.createComment("ds-sheet-placeholder");
@@ -1577,6 +1589,8 @@ var DiarySheetModal = BaseModal ? class extends BaseModal {
       this.placeholder.remove();
     }
     this.placeholder = null;
+    this.view.nativeKbH = 0;
+    this.view.syncKbObservers?.(false);
     this.opts.onClosed?.();
   }
 } : null;
@@ -1598,9 +1612,14 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     __publicField(this, "sheetModal", null);
     __publicField(this, "overlayScope", null);
     __publicField(this, "baseViewportH", 0);
+    __publicField(this, "baseLeafH", 0);
+    __publicField(this, "nativeKbH", 0);
     __publicField(this, "lastViewportW", 0);
     __publicField(this, "focusOutTimer", 0);
     __publicField(this, "kbCheckTimers", []);
+    __publicField(this, "kbEventHandler", null);
+    __publicField(this, "kbMo", null);
+    __publicField(this, "kbMoRaf", 0);
     __publicField(this, "toastTimer", 0);
     __publicField(this, "lightbox", null);
     __publicField(this, "toTopBtn", null);
@@ -1658,6 +1677,55 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       host.classList.add("ds-pal-" + pal);
     }
   }
+  readKeyboardMetrics(doc, win) {
+    const num = (v) => {
+      const n = parseFloat(v || "0");
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    const csBody = win.getComputedStyle?.(doc.body);
+    const csRoot = doc.documentElement ? win.getComputedStyle?.(doc.documentElement) : null;
+    const probe = this.root?.querySelector?.(".ds-kb-probe");
+    const csProbe = probe ? win.getComputedStyle?.(probe) : null;
+    const obsKbH = Math.max(
+      num(csProbe?.paddingTop),
+      num(csBody?.getPropertyValue?.("--keyboard-height")),
+      num(csRoot?.getPropertyValue?.("--keyboard-height"))
+    );
+    const obsSafeB = Math.max(
+      num(csProbe?.paddingRight),
+      num(csBody?.getPropertyValue?.("--safe-area-inset-bottom")),
+      num(csRoot?.getPropertyValue?.("--safe-area-inset-bottom"))
+    );
+    const envKbH = num(csProbe?.paddingBottom);
+    const envSafeB = num(csProbe?.paddingLeft);
+    const bodyPadB = num(csBody?.paddingBottom);
+    return { obsKbH, obsSafeB, envKbH, envSafeB, bodyPadB };
+  }
+  syncKbObservers(active) {
+    const doc = this.root?.ownerDocument;
+    const win = doc?.defaultView;
+    if (this.kbMo) {
+      this.kbMo.disconnect();
+      this.kbMo = null;
+    }
+    if (this.kbMoRaf && win?.cancelAnimationFrame) {
+      win.cancelAnimationFrame(this.kbMoRaf);
+      this.kbMoRaf = 0;
+    }
+    if (!active || !doc || !win || typeof win.MutationObserver !== "function") return;
+    const mo = new win.MutationObserver(() => {
+      if (this.kbMoRaf) return;
+      this.kbMoRaf = win.requestAnimationFrame(() => {
+        this.kbMoRaf = 0;
+        this.syncViewport();
+      });
+    });
+    const targets = [doc.body, doc.documentElement, doc.querySelector?.(".app-container")].filter(Boolean);
+    for (const t of targets) {
+      mo.observe(t, { attributes: true, attributeFilter: ["style", "class"] });
+    }
+    this.kbMo = mo;
+  }
   syncViewport(extraTarget = null) {
     const doc = this.root?.ownerDocument;
     const win = doc?.defaultView;
@@ -1666,19 +1734,61 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const winW = win.innerWidth || 0;
     const winH = win.innerHeight || 0;
     const vvH = vv?.height || winH;
+    const vvTop = vv?.offsetTop || 0;
+    const vvBottom = vv ? vvTop + vvH : winH;
     if (winW && Math.abs(winW - this.lastViewportW) > 40) {
       this.lastViewportW = winW;
       this.baseViewportH = 0;
+      this.baseLeafH = 0;
     }
     this.baseViewportH = Math.max(this.baseViewportH, winH, vvH);
-    const bodyPadB = parseFloat(win.getComputedStyle?.(doc.body)?.paddingBottom || "0") || 0;
-    const candidates = [winH, vvH, bodyPadB > 100 ? winH - bodyPadB : 0].filter((n) => n > 120);
-    const visH = candidates.length ? Math.round(Math.min(...candidates)) : 0;
-    const kbOpen = (this.baseViewportH > 0 && visH > 0 && this.baseViewportH - visH > 120)
+    const { obsKbH, obsSafeB, envKbH, envSafeB, bodyPadB } = this.readKeyboardMetrics(doc, win);
+    const isMobile = !!doc.body?.classList?.contains("is-mobile");
+    const modalHost = this.sheetModal?.containerEl || (extraTarget?.classList?.contains?.("ds-sheet-modal-wrap") ? extraTarget : null);
+    const mr = modalHost?.getBoundingClientRect?.();
+    const refH = mr && mr.height > 120 ? mr.height : winH;
+    const refBottom = mr && mr.bottom > 120 ? mr.bottom : winH;
+    const layoutShrink = Math.max(0, this.baseViewportH - refH);
+    const vvOverlap = Math.max(0, refBottom - vvBottom);
+    const rawKbVar = Math.max(obsKbH, envKbH, bodyPadB > 100 ? bodyPadB : 0);
+    const safeKbVar = obsSafeB > 100 ? obsSafeB : 0;
+    let varInset = 0;
+    if (layoutShrink > 100) {
+      const netKb = Math.max(rawKbVar, safeKbVar > envSafeB ? safeKbVar - envSafeB : safeKbVar);
+      varInset = Math.max(0, netKb - layoutShrink);
+    } else {
+      varInset = Math.max(rawKbVar, safeKbVar);
+    }
+    let leafKbInset = 0;
+    if (isMobile) {
+      const leafEl = this.containerEl?.closest?.(".workspace-leaf") || this.containerEl;
+      const lr = leafEl?.getBoundingClientRect?.();
+      if (lr && lr.height > 120) {
+        this.baseLeafH = Math.max(this.baseLeafH, lr.height);
+        const leafShrink = Math.max(0, this.baseLeafH - lr.height);
+        if (leafShrink > 100 && refBottom > lr.bottom + 4) {
+          leafKbInset = Math.round(refBottom - lr.bottom);
+        }
+      }
+    }
+    const primaryOccluded = Math.max(vvOverlap, varInset, leafKbInset);
+    const fallbackNative = layoutShrink <= 100 && primaryOccluded <= 0 && this.nativeKbH > 80 ? this.nativeKbH : 0;
+    const kbOccluded = Math.round(Math.max(primaryOccluded, fallbackNative));
+    const kbOpen = layoutShrink > 100
+      || kbOccluded > 100
       || !!doc.body?.classList?.contains("is-keyboard-open")
       || bodyPadB > 120;
+    const candidates = [
+      winH,
+      vvH,
+      kbOccluded > 0 && refH > kbOccluded + 120 ? refH - kbOccluded : 0,
+      bodyPadB > 100 ? winH - bodyPadB : 0
+    ].filter((n) => n > 120);
+    const visH = candidates.length ? Math.round(Math.min(...candidates)) : 0;
+    const safeBottomClosed = Math.max(envSafeB, obsSafeB < 100 ? obsSafeB : 0);
+    const writeKbInset = kbOpen ? kbOccluded : Math.round(safeBottomClosed);
     let navBottom = 0;
-    if (doc.body?.classList?.contains("is-mobile") && !kbOpen) {
+    if (isMobile && !kbOpen) {
       const nav = doc.querySelector(".mobile-navbar");
       const nr = nav?.getBoundingClientRect?.();
       if (nr && nr.height > 0 && visH > 0 && nr.top < visH) {
@@ -1691,10 +1801,16 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       if (!host?.style) continue;
       if (visH > 0) host.style.setProperty("--ds-vvh", `${visH}px`);
       host.style.setProperty("--ds-nav-bottom", `${navBottom}px`);
+      host.style.setProperty("--ds-write-kb-inset", `${writeKbInset}px`);
       host.classList?.toggle("is-kb-open", kbOpen);
       if (host.classList?.contains("ds-sheet-modal-wrap")) {
-        const mr = host.getBoundingClientRect?.();
-        const kbLift = kbOpen && visH > 0 && mr && mr.bottom > visH + 4 ? Math.round(mr.bottom - visH) : 0;
+        const hmr = host.getBoundingClientRect?.();
+        const kbLift = kbOpen && hmr && hmr.bottom > 120
+          ? Math.round(Math.max(
+            visH > 0 && hmr.bottom > visH + 4 ? hmr.bottom - visH : 0,
+            kbOccluded
+          ))
+          : 0;
         host.style.setProperty("--ds-kb-lift", `${kbLift}px`);
       }
     }
@@ -1703,7 +1819,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     const win = this.root?.ownerDocument?.defaultView;
     if (!win) return;
     this.kbCheckTimers.forEach((id) => win.clearTimeout(id));
-    this.kbCheckTimers = [80, 220, 420].map((ms) => win.setTimeout(() => this.syncViewport(), ms));
+    this.kbCheckTimers = [60, 180, 360, 560].map((ms) => win.setTimeout(() => this.syncViewport(), ms));
   }
   handleBackAction() {
     if (this.lightbox?.isOpen) {
@@ -1892,7 +2008,8 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
         <div class="ds-sheet-body"><div class="ds-sheet-sec"><h5>\u6309\u65F6\u95F4\u4E0E\u7C7B\u578B</h5><div class="ds-chips ds-mfilterlist"></div></div><div class="ds-sheet-sec"><h5>\u5E38\u7528\u6807\u7B7E</h5><div class="ds-taglist ds-mtaglist"></div></div></div>
       </section>
       <div class="ds-toast" hidden></div>
-      <div class="ds-confirm" hidden></div>`;
+      <div class="ds-confirm" hidden></div>
+      <div class="ds-kb-probe" aria-hidden="true"></div>`;
     this.icons(this.root);
     this.containerEl.addClass("ds-leaf");
     this.toTopBtn = this.containerEl.createEl("button", { cls: "ds-totop", attr: { type: "button" } });
@@ -1949,7 +2066,9 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
           const ae = this.root?.ownerDocument?.activeElement;
           if (!ae || !writeSheet.contains(ae) || !ae.matches?.("textarea,input")) {
             writeSheet.classList.remove("is-input-focused");
+            this.nativeKbH = 0;
             this.syncViewport();
+            this.scheduleKbChecks();
           }
         }, 140) : 0;
       });
@@ -1991,6 +2110,20 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     }
     this.onWinResize = () => this.syncViewport();
     win?.addEventListener("resize", this.onWinResize);
+    this.kbEventHandler = (e) => {
+      if (e?.type === "keyboardWillHide" || e?.type === "keyboardDidHide") {
+        this.nativeKbH = 0;
+      } else if (typeof e?.keyboardHeight === "number" && e.keyboardHeight > 0) {
+        const winH = win?.innerHeight || 0;
+        const dpr = win?.devicePixelRatio || 1;
+        let h = e.keyboardHeight;
+        if (winH > 0 && h > winH * 0.65 && dpr > 1.25) h = h / dpr;
+        if (h > 80 && (!winH || h < winH * 0.75)) this.nativeKbH = Math.round(h);
+      }
+      this.syncViewport();
+      this.scheduleKbChecks();
+    };
+    ["keyboardWillShow", "keyboardDidShow", "keyboardWillHide", "keyboardDidHide"].forEach((ev) => win?.addEventListener(ev, this.kbEventHandler));
     this.syncViewport();
     this.root.addEventListener("click", (e) => this.onClick(e));
     this.root.ownerDocument.addEventListener("click", this.onSearchOutside, true);
@@ -2010,6 +2143,7 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
     };
     this.ro = new ResizeObserver(updateWidth);
     this.ro.observe(this.root);
+    if (this.containerEl) this.ro.observe(this.containerEl);
     this.ro.observe(this.root.querySelector(".ds-heat"));
     updateWidth();
     this.off = this.store.onChange(() => {
@@ -2050,6 +2184,10 @@ var DiaryStreamView = class extends import_obsidian3.ItemView {
       vv.removeEventListener("scroll", this.vvHandler);
     }
     if (win && this.onWinResize) win.removeEventListener("resize", this.onWinResize);
+    if (win && this.kbEventHandler) {
+      ["keyboardWillShow", "keyboardDidShow", "keyboardWillHide", "keyboardDidHide"].forEach((ev) => win.removeEventListener(ev, this.kbEventHandler));
+    }
+    this.syncKbObservers(false);
     if (this.onTitleClick) this.containerEl?.querySelector(".view-header-title")?.removeEventListener("click", this.onTitleClick);
     this.root.ownerDocument.removeEventListener("click", this.onSearchOutside, true);
     win?.clearTimeout(this.searchOutsideTimer);

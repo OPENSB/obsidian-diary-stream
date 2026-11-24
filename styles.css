@@ -946,7 +946,22 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   display: none;
 }
 
-/* 手机端 / 窄屏：整页沉浸式写日记页，纯暖白画布铺满全屏，彻底消除弹窗割裂与键盘遮挡 */
+/* 键盘/安全区探针（将 Obsidian 原生 CSS 变量与 env() 统一解析为精确像素） */
+.ds-kb-probe {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 0;
+  height: 0;
+  padding-top: var(--keyboard-height, 0px);
+  padding-right: var(--safe-area-inset-bottom, 0px);
+  padding-bottom: env(keyboard-inset-height, 0px);
+  padding-left: env(safe-area-inset-bottom, 0px);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 手机端 / 窄屏：整页沉浸式写日记页，输入区自适应撑满，工具栏紧贴键盘顶边 */
 .is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal,
 .modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal {
   position: fixed !important;
@@ -985,24 +1000,36 @@ body .modal-container.ds-sheet-modal-wrap > :not(.modal-bg):not(.modal) {
   box-shadow: none;
   background: var(--ds-card);
   padding-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px), 32px);
-  padding-bottom: 0;
+  padding-bottom: var(--ds-write-kb-inset, max(var(--keyboard-height, 0px), var(--safe-area-inset-bottom, 0px), env(keyboard-inset-height, 0px), env(safe-area-inset-bottom, 0px)));
 }
 .is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-blocks,
 .modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-blocks {
-  flex: 0 1 auto;
-  min-height: 220px;
-  max-height: calc(50dvh - 110px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   padding: 18px 20px 14px;
 }
 .is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal textarea.ds-body.is-solo,
 .modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal textarea.ds-body.is-solo {
-  min-height: 200px;
+  min-height: 96px;
+}
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal.is-kb-open textarea.ds-body.is-solo,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal.is-kb-open textarea.ds-body.is-solo {
+  min-height: 64px;
 }
 .is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal .ds-bar,
 .modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal .ds-bar {
   padding: 8px 14px 10px;
   border-top: 1px solid var(--ds-line);
-  border-bottom: 1px solid var(--ds-line);
+  background: var(--ds-card);
+}
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal.is-kb-open .ds-bar,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal.is-kb-open .ds-bar {
+  padding-bottom: 8px;
+}
+.is-mobile .modal-container.ds-sheet-modal-wrap.is-write-modal.is-kb-open .ds-preview pre,
+.modal-container.ds-sheet-modal-wrap.is-narrow.is-write-modal.is-kb-open .ds-preview pre {
+  max-height: 110px;
 }
 
 /* 非宿主预览兜底态 */

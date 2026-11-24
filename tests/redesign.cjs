@@ -151,6 +151,10 @@ test('CSS avoids zero-specificity button reset, wrap transform trap, clip-path m
   assert.match(css, /body\s+\.modal-container\.ds-sheet-modal-wrap\s+\.modal-close-button/);
   assert.match(css, /\.modal-container\.ds-sheet-modal-wrap\.is-write-modal[\s\S]*align-items:\s*flex-start/);
   assert.match(css, /\.is-mobile\s+\.modal-container\.ds-sheet-modal-wrap\.is-write-modal[\s\S]*inset:\s*0\s*!important/);
+  assert.match(css, /\.ds-kb-probe[\s\S]*padding-top:\s*var\(--keyboard-height/);
+  assert.match(css, /\.is-mobile\s+\.modal-container\.ds-sheet-modal-wrap\.is-write-modal\s+\.ds-write-sheet[\s\S]*padding-bottom:\s*var\(--ds-write-kb-inset/);
+  assert.match(css, /\.is-mobile\s+\.modal-container\.ds-sheet-modal-wrap\.is-write-modal\s+\.ds-blocks[\s\S]*flex:\s*1\s+1\s+auto[\s\S]*max-height:\s*none/);
+  assert.ok(!css.includes('calc(50dvh - 110px)'), 'mobile write blocks must not be capped at 50dvh');
   assert.match(css, /\.ds-root:not\(\.is-search-open\)\s+\.ds-entry\s*\{\s*display:\s*none/);
 });
 
@@ -229,7 +233,88 @@ test('syncViewport detects keyboard shrink and clears mobile navbar offset', () 
   view.syncViewport();
   assert.equal(props['--ds-vvh'], '500px');
   assert.equal(props['--ds-nav-bottom'], '0px');
+  assert.equal(props['--ds-write-kb-inset'], '340px');
   assert.equal(classes.has('is-kb-open'), true);
+});
+
+test('syncViewport follows Obsidian Android edge-to-edge --safe-area-inset-bottom, leaf shrink, and avoids adjustResize double-counting', () => {
+  const mkHost = (extraClasses = [], rectFn = () => ({ top: 0, bottom: 891, height: 891 })) => {
+    const props = {};
+    const cls = new Set(extraClasses);
+    return {
+      props,
+      cls,
+      style: { setProperty: (k, v) => { props[k] = v; } },
+      classList: {
+        toggle: (k, on) => on ? cls.add(k) : cls.delete(k),
+        contains: (k) => cls.has(k)
+      },
+      getBoundingClientRect: rectFn
+    };
+  };
+
+  let winH = 891;
+  let vvH = 891;
+  let modalH = 891;
+  let leafRect = { top: 88, bottom: 891, height: 803 };
+  let probeStyle = { paddingTop: '0px', paddingRight: '14.86px', paddingBottom: '0px', paddingLeft: '14.86px' };
+  const probeEl = { tag: 'probe' };
+  const doc = {
+    body: { classList: { contains: (c) => c === 'is-mobile' } },
+    documentElement: {},
+    querySelector: (sel) => sel === '.mobile-navbar' ? { getBoundingClientRect: () => ({ top: 820, height: 56 }) } : null,
+    defaultView: {
+      innerWidth: 412,
+      get innerHeight() { return winH; },
+      visualViewport: { offsetTop: 0, get height() { return vvH; } },
+      getComputedStyle: (el) => el === probeEl ? probeStyle : { paddingBottom: '0px', getPropertyValue: () => '' }
+    }
+  };
+
+  const view = new DiaryStreamView(null, {});
+  const root = mkHost();
+  root.ownerDocument = doc;
+  root.querySelector = (sel) => sel === '.ds-kb-probe' ? probeEl : null;
+  const modalHost = mkHost(['ds-sheet-modal-wrap', 'is-write-modal'], () => ({ top: 0, bottom: modalH, height: modalH }));
+  view.root = root;
+  view.sheetModal = { containerEl: modalHost };
+  view.containerEl = { closest: () => ({ getBoundingClientRect: () => leafRect }) };
+
+  // 1. Keyboard closed: clears gesture bar only
+  view.syncViewport();
+  assert.equal(modalHost.props['--ds-write-kb-inset'], '15px');
+  assert.equal(modalHost.cls.has('is-kb-open'), false);
+
+  // 2. Android edge-to-edge: innerHeight & visualViewport stay 891, --safe-area-inset-bottom jumps to 378.67px
+  probeStyle = { paddingTop: '363.81px', paddingRight: '378.67px', paddingBottom: '0px', paddingLeft: '14.86px' };
+  view.syncViewport();
+  assert.equal(modalHost.props['--ds-write-kb-inset'], '379px');
+  assert.equal(modalHost.cls.has('is-kb-open'), true);
+
+  // 3. Android adjustResize: modal container itself already shrank by 364px -> must NOT double-count
+  winH = 527;
+  vvH = 527;
+  modalH = 527;
+  leafRect = { top: 88, bottom: 527, height: 439 };
+  view.syncViewport();
+  assert.equal(modalHost.props['--ds-write-kb-inset'], '0px');
+  assert.equal(modalHost.cls.has('is-kb-open'), true);
+
+  // 4. Fallback via workspace leaf shrink when CSS variables & visualViewport report 0
+  winH = 891;
+  vvH = 891;
+  modalH = 891;
+  probeStyle = { paddingTop: '0px', paddingRight: '14.86px', paddingBottom: '0px', paddingLeft: '14.86px' };
+  leafRect = { top: 88, bottom: 512, height: 424 };
+  view.syncViewport();
+  assert.equal(modalHost.props['--ds-write-kb-inset'], '379px');
+  assert.equal(modalHost.cls.has('is-kb-open'), true);
+
+  // 5. Keyboard closes again: restores gesture bar clearance
+  leafRect = { top: 88, bottom: 891, height: 803 };
+  view.syncViewport();
+  assert.equal(modalHost.props['--ds-write-kb-inset'], '15px');
+  assert.equal(modalHost.cls.has('is-kb-open'), false);
 });
 
 test('DiarySheetModal hosts sheet in Obsidian Modal and restores DOM + clears state on close', () => {
