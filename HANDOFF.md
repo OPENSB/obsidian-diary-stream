@@ -93,6 +93,9 @@ git diff --check
   1. 移除手机全屏写作页 `.ds-blocks` 的 `max-height: calc(50dvh - 110px)` 与 `flex: 0 1 auto` 硬编码上限，改为 `flex: 1 1 auto; min-height: 0; max-height: none;`，输入区撑满剩余空间，工具栏 `.ds-bar` 自动沉底并去掉多余下边框；点击 `.ds-blocks` 空白处可直接聚焦到输入末尾。
   2. 新增 `.ds-kb-probe` 探针与 `readKeyboardMetrics()` / `syncKbObservers()`，通过 `MutationObserver`（`body` / `:root` / `.app-container`）、`ResizeObserver`（底层 `ItemView` leaf）、`visualViewport` 及 Capacitor 键盘事件多路读取 Obsidian 原生 `--keyboard-height`、`--safe-area-inset-bottom`、`env(keyboard-inset-height)`、视口收缩与底层 leaf 高度差，算出不重复叠加的 `--ds-write-kb-inset` 驱动 `.ds-write-sheet` 底部避让。
   3. 键盘收起时贴屏幕底（仅避让手势条/Home Indicator），键盘弹起时工具栏紧贴键盘顶边；在 `adjustResize` 自动收缩视口的设备上自动扣除已收缩高度，避免双倍留白。
-- **验证与状态**：`npm run check`、`npm test`（29/29，新增 Android Edge-to-Edge / `adjustResize` 防重复叠加 / leaf 兜底测试）及 `git diff --check` 通过；已发布 `0.2.4` 供 BRAT 拉取，待用户安卓真机实测。
+- **验证与状态**：
+  - 本地检查：`npm run check`、`npm test`（29/29，新增 Android Edge-to-Edge / `adjustResize` 防重复叠加 / leaf 兜底测试）及 `git diff --check` 全部通过。
+  - BRAT 发布：已发布公开 Release `0.2.4`（<https://github.com/OPENSB/obsidian-diary-stream/releases/tag/0.2.4>），匿名下载根级资产 `main.js`（160,081 B）、`manifest.json`（284 B）、`styles.css`（62,526 B）均返回 HTTP 200 且 SHA-256 与本地逐字节一致。
+  - 真机验收：**用户已通过 BRAT 更新到 `0.2.4` 并在安卓真机实测确认修复**（工具栏可跟随软键盘贴底，不再悬在半空）；iOS 真机尚未验证。
 
-最后提交：93e50c0adc07e1f65c5348d2264de020ac9585ac
+最后提交：f4361ce98facb21f4367699a77942e8078ce12e8
